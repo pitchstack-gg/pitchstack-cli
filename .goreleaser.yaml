@@ -1,0 +1,70 @@
+version: 2
+
+project_name: pitchstack
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: pitchstack
+    main: ./cmd/pitchstack
+    binary: pitchstack
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/pitchstack-gg/pitchstack-cli/internal/buildinfo.Version={{.Version}}
+      - -X github.com/pitchstack-gg/pitchstack-cli/internal/buildinfo.Commit={{.Commit}}
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: pitchstack
+    builds:
+      - pitchstack
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: pitchstack-gg
+    name: pitchstack-cli
+  prerelease: auto
+  footer: |
+    ## Install
+
+    ### macOS / Linux
+
+    1) Download the archive for your OS/arch from the assets list above.
+    2) Extract and move `pitchstack` into a directory on your `PATH`:
+
+    ```sh
+    tar -xzf pitchstack_{{ .Version }}_<os>_<arch>.tar.gz
+    sudo install -m 0755 pitchstack /usr/local/bin/pitchstack
+    ```
+
+    ### Windows
+
+    Download the `.zip`, extract `pitchstack.exe`, and put it somewhere on your `PATH`.
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"

@@ -19,6 +19,15 @@ make install
 OUT_DIR="$HOME/bin" ./scripts/install.sh
 ```
 
+### Install From GitHub Releases
+
+Download the archive for your OS/arch from the GitHub Releases page and place `pitchstack` somewhere on your `PATH`:
+
+```sh
+tar -xzf pitchstack_<version>_<os>_<arch>.tar.gz
+sudo install -m 0755 pitchstack /usr/local/bin/pitchstack
+```
+
 ## Quickstart
 
 1) Create a config (optional — defaults work without it):

@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GOPRIVATE: github.com/pitchstack-gg/*
+          GONOSUMDB: github.com/pitchstack-gg/*
+        run: |
+          go test ./...
+
+  goreleaser-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot --clean --skip=publish
+        env:
+          GIT_TERMINAL_PROMPT: "0"
+          GOPRIVATE: github.com/pitchstack-gg/*
+          GONOSUMDB: github.com/pitchstack-gg/*
+
