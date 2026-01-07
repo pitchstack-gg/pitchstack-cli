@@ -21,6 +21,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Configure git for private modules
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser
@@ -31,4 +37,3 @@ jobs:
           GIT_TERMINAL_PROMPT: "0"
           GOPRIVATE: github.com/pitchstack-gg/*
           GONOSUMDB: github.com/pitchstack-gg/*
-
