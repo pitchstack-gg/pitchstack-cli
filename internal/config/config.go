@@ -1,0 +1,98 @@
+package config
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+)
+
+type Config struct {
+	CurrentProfile string             `json:"currentProfile,omitempty"`
+	Profiles       map[string]Profile `json:"profiles,omitempty"`
+}
+
+type Profile struct {
+	BaseURL        string `json:"baseUrl,omitempty"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
+}
+
+type Deps struct {
+	Path    string
+	Config  *Config
+	Profile Profile
+}
+
+func Default() *Config {
+	return &Config{
+		CurrentProfile: "default",
+		Profiles: map[string]Profile{
+			"default": {
+				BaseURL:        "https://api.pitchstack.gg",
+				TimeoutSeconds: 30,
+			},
+		},
+	}
+}
+
+func (c *Config) Profile(name string) (Profile, bool) {
+	if c == nil {
+		return Profile{}, false
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return Profile{}, false
+	}
+	p, ok := c.Profiles[name]
+	return p, ok
+}
+
+func Load(path string) (*Config, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, errors.New("config path must not be empty")
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Default(), nil
+		}
+		return nil, fmt.Errorf("read %s: %w", path, err)
+	}
+
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("parse %s: %w", path, err)
+	}
+
+	if cfg.CurrentProfile == "" {
+		cfg.CurrentProfile = "default"
+	}
+	if cfg.Profiles == nil || len(cfg.Profiles) == 0 {
+		cfg.Profiles = Default().Profiles
+	}
+	return &cfg, nil
+}
+
+func WriteDefault(path string) error {
+	cfg := Default()
+
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create config dir: %w", err)
+	}
+
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode config: %w", err)
+	}
+	data = append(data, '\n')
+
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
