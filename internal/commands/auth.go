@@ -54,7 +54,11 @@ func newLoginCommand() *cli.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintf(cmd.Writer, "logged in as %s (%s)\n", sess.Username, sess.UserID)
+			if strings.TrimSpace(sess.Username) != "" {
+				_, err = fmt.Fprintf(cmd.Writer, "logged in as %s (%s)\n", sess.Username, sess.UserID)
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.Writer, "logged in (%s)\n", sess.UserID)
 			return err
 		},
 	}
@@ -108,7 +112,11 @@ func newSignupCommand() *cli.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintf(cmd.Writer, "account created; logged in as %s (%s)\n", sess.Username, sess.UserID)
+			if strings.TrimSpace(sess.Username) != "" {
+				_, err = fmt.Fprintf(cmd.Writer, "account created; logged in as %s (%s)\n", sess.Username, sess.UserID)
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.Writer, "account created; logged in (%s)\n", sess.UserID)
 			return err
 		},
 	}
@@ -133,6 +141,13 @@ func newWhoamiCommand() *cli.Command {
 				return err
 			}
 
+			username := strings.TrimSpace(sess.Username)
+			if username == "" {
+				if u, err := st.Service.EnsureUsername(ctx); err == nil {
+					username = strings.TrimSpace(u)
+				}
+			}
+
 			me, err := st.Service.Me(ctx)
 			if err != nil {
 				return err
@@ -141,7 +156,11 @@ func newWhoamiCommand() *cli.Command {
 				_, err := fmt.Fprintln(cmd.Writer, "not logged in")
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.Writer, "%s (%s) <%s>\n", me.User.Username, me.User.UserID, me.User.Email)
+
+			if username == "" {
+				username = "unknown"
+			}
+			_, err = fmt.Fprintf(cmd.Writer, "%s (%s) <%s>\n", username, me.User.UserID, me.User.Email)
 			return err
 		},
 	}

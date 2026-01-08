@@ -75,13 +75,17 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*session.Session, e
 	sess := &session.Session{
 		BaseURL:              s.baseURL,
 		UserID:               resp.UserID,
-		Username:             resp.Username,
 		Roles:                resp.Roles,
 		AccessToken:          resp.AccessToken,
 		RefreshToken:         resp.RefreshToken,
 		AccessTokenExpiresAt: derefTime(resp.AccessTokenExpiresAt),
 	}
 	if err := s.store.Save(sess); err != nil {
+		return nil, err
+	}
+	_, _ = s.EnsureUsername(ctx)
+	sess, err = s.store.Load()
+	if err != nil {
 		return nil, err
 	}
 	return sess, nil
@@ -382,7 +386,6 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) (*session.Session,
 
 	var resp struct {
 		UserID               string     `json:"userId,omitempty"`
-		Username             string     `json:"username,omitempty"`
 		AccessToken          string     `json:"accessToken,omitempty"`
 		RefreshToken         string     `json:"refreshToken,omitempty"`
 		AccessTokenExpiresAt *time.Time `json:"accessTokenExpiresAt,omitempty"`
@@ -395,7 +398,7 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) (*session.Session,
 	sess := &session.Session{
 		BaseURL:              s.baseURL,
 		UserID:               resp.UserID,
-		Username:             resp.Username,
+		Username:             strings.TrimSpace(in.Username),
 		Roles:                resp.Roles,
 		AccessToken:          resp.AccessToken,
 		RefreshToken:         resp.RefreshToken,
@@ -404,7 +407,94 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) (*session.Session,
 	if err := s.store.Save(sess); err != nil {
 		return nil, err
 	}
+	_, _ = s.EnsureUsername(ctx)
+	sess, err := s.store.Load()
+	if err != nil {
+		return nil, err
+	}
 	return sess, nil
+}
+
+// GetMyProfile fetches the authenticated user's profile from the users service.
+func (s *Service) GetMyProfile(ctx context.Context) (*clientv1.UserProfile, error) {
+	if s.store == nil {
+		return nil, errors.New("session store is not configured")
+	}
+
+	cred, err := s.credential(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if cred == nil || strings.TrimSpace(cred.Value) == "" {
+		return nil, errors.New("not logged in")
+	}
+
+	var resp struct {
+		Profile *clientv1.UserProfile `json:"profile,omitempty"`
+	}
+	headers := make(http.Header)
+	headers.Set(cred.Header, cred.Value)
+
+	if err := s.getJSON(ctx, "/v1/me/profile", &resp, headers); err != nil {
+		// Backwards-compat fallback for older servers that don't implement /v1/me/profile.
+		if strings.Contains(err.Error(), "api error (404)") {
+			sess, loadErr := s.store.Load()
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			if sess == nil || strings.TrimSpace(sess.UserID) == "" {
+				return nil, errors.New("not logged in")
+			}
+			c, clientErr := s.client(true)
+			if clientErr != nil {
+				return nil, clientErr
+			}
+			out, getErr := c.GetProfile(ctx, &clientv1.GetProfileRequest{UserID: sess.UserID})
+			if getErr != nil {
+				return nil, getErr
+			}
+			if out == nil {
+				return nil, nil
+			}
+			return out.Profile, nil
+		}
+		return nil, err
+	}
+	return resp.Profile, nil
+}
+
+// EnsureUsername ensures the local session has a username, fetching it from the users service if needed.
+func (s *Service) EnsureUsername(ctx context.Context) (string, error) {
+	if s.store == nil {
+		return "", errors.New("session store is not configured")
+	}
+	sess, err := s.store.Load()
+	if err != nil {
+		return "", err
+	}
+	if sess == nil {
+		return "", errors.New("not logged in")
+	}
+	if username := strings.TrimSpace(sess.Username); username != "" {
+		return username, nil
+	}
+
+	profile, err := s.GetMyProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+	if profile == nil {
+		return "", nil
+	}
+	username := strings.TrimSpace(profile.Username)
+	if username == "" {
+		return "", nil
+	}
+	sess.Username = username
+	if err := s.store.Save(sess); err != nil {
+		return "", err
+	}
+	return username, nil
 }
 
 func (s *Service) credential(ctx context.Context) (*clientv1.Credential, error) {
@@ -490,6 +580,53 @@ func derefTime(t *time.Time) time.Time {
 		return time.Time{}
 	}
 	return t.UTC()
+}
+
+func (s *Service) getJSON(ctx context.Context, path string, out any, headers http.Header) error {
+	base, err := url.Parse(s.baseURL)
+	if err != nil {
+		return fmt.Errorf("parse base url: %w", err)
+	}
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+	rel, err := url.Parse(path)
+	if err != nil {
+		return fmt.Errorf("parse path: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.ResolveReference(rel).String(), nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	for k, vals := range headers {
+		for _, v := range vals {
+			req.Header.Add(k, v)
+		}
+	}
+
+	httpClient := &http.Client{Timeout: s.timeout}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("api error (%d): %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+	}
+	if out == nil || len(respBody) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(respBody, out); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) postJSON(ctx context.Context, path string, payload any, out any, headers http.Header) error {
