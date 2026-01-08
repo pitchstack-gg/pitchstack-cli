@@ -94,6 +94,7 @@ go run ./cmd/pitchstack cards product --id <product-id>
 ## Profile
 
 ```sh
+go run ./cmd/pitchstack profile get
 go run ./cmd/pitchstack profile get --user-id <user-id>
 go run ./cmd/pitchstack profile update --name "Your Name" --bio "Hello"
 go run ./cmd/pitchstack profile settings get

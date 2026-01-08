@@ -26,16 +26,26 @@ func newProfileCommand() *cli.Command {
 func newProfileGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
-		Usage: "Get a user's profile",
+		Usage: "Get a user's profile (defaults to current user)",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "user-id", Usage: "User ID", Required: true},
+			&cli.StringFlag{Name: "user-id", Usage: "User ID (optional)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
 			if err != nil {
 				return err
 			}
-			resp, err := st.Service.GetProfile(ctx, &clientv1.GetProfileRequest{UserID: strings.TrimSpace(cmd.String("user-id"))})
+
+			userID := strings.TrimSpace(cmd.String("user-id"))
+			if userID == "" {
+				profile, err := st.Service.GetMyProfile(ctx)
+				if err != nil {
+					return err
+				}
+				return writeJSON(cmd.Writer, &clientv1.GetProfileResponse{Profile: profile})
+			}
+
+			resp, err := st.Service.GetProfile(ctx, &clientv1.GetProfileRequest{UserID: userID})
 			if err != nil {
 				return err
 			}
