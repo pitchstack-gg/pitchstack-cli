@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/pitchstack-gg/pitchstack-cli/internal/config"
 	"github.com/pitchstack-gg/pitchstack-cli/internal/paths"
@@ -40,7 +41,15 @@ func loadState(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 		return ctx, cli.Exit(fmt.Sprintf("unknown profile %q", profileName), 2)
 	}
 
-	store := session.NewStore(paths.DefaultSessionPath())
+	store := session.NewStore(paths.SessionPath(profileName))
+	if cur, err := store.Load(); err == nil && cur == nil {
+		legacyStore := session.NewStore(paths.DefaultSessionPath())
+		if legacySess, legacyErr := legacyStore.Load(); legacyErr == nil && legacySess != nil {
+			if strings.TrimSpace(legacySess.BaseURL) == strings.TrimSpace(prof.BaseURL) {
+				_ = store.Save(legacySess)
+			}
+		}
+	}
 	svc := pitchstack.NewService(pitchstack.ServiceDeps{
 		BaseURL:        prof.BaseURL,
 		TimeoutSeconds: prof.TimeoutSeconds,

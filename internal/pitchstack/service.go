@@ -45,9 +45,16 @@ func NewService(deps ServiceDeps) *Service {
 }
 
 func (s *Service) client(withCreds bool) (*clientv1.Client, error) {
+	httpClient := &http.Client{
+		Timeout: s.timeout,
+		Transport: &authRetryRoundTripper{
+			base: http.DefaultTransport,
+			svc:  s,
+		},
+	}
 	opts := []clientv1.ClientOpt{
 		clientv1.WithBaseURL(s.baseURL),
-		clientv1.WithHTTPTimeout(s.timeout),
+		clientv1.WithHTTPClient(httpClient),
 	}
 	if withCreds {
 		opts = append(opts, clientv1.WithCredentialProvider(clientv1.CredentialProviderFunc(s.credential)))
@@ -71,24 +78,13 @@ func (s *Service) Login(ctx context.Context, in LoginInput) (*session.Session, e
 	if err != nil {
 		return nil, err
 	}
-
-	sess := &session.Session{
-		BaseURL:              s.baseURL,
+	return s.saveSessionFromLogin(ctx, loginResult{
 		UserID:               resp.UserID,
 		Roles:                resp.Roles,
 		AccessToken:          resp.AccessToken,
 		RefreshToken:         resp.RefreshToken,
-		AccessTokenExpiresAt: derefTime(resp.AccessTokenExpiresAt),
-	}
-	if err := s.store.Save(sess); err != nil {
-		return nil, err
-	}
-	_, _ = s.EnsureUsername(ctx)
-	sess, err = s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-	return sess, nil
+		AccessTokenExpiresAt: resp.AccessTokenExpiresAt,
+	})
 }
 
 func (s *Service) Logout(ctx context.Context) error {
@@ -366,6 +362,117 @@ type LoginInput struct {
 	DeviceInfo string
 }
 
+type CLILoginSession struct {
+	SessionID        string
+	SessionSecret    string
+	VerificationPath string
+	VerificationURL  string
+	ExpiresAt        time.Time
+	PollInterval     time.Duration
+}
+
+type CLILoginSessionPoll struct {
+	Status string
+	Login  *CLILoginSessionLogin
+}
+
+type CLILoginSessionLogin struct {
+	UserID               string
+	Roles                []string
+	AccessToken          string
+	RefreshToken         string
+	AccessTokenExpiresAt *time.Time
+}
+
+func (s *Service) CreateCLILoginSession(ctx context.Context, oauthBaseURL string) (*CLILoginSession, error) {
+	if strings.TrimSpace(oauthBaseURL) == "" {
+		return nil, errors.New("oauth base url must not be empty")
+	}
+
+	var resp struct {
+		SessionID           string     `json:"sessionId,omitempty"`
+		SessionSecret       string     `json:"sessionSecret,omitempty"`
+		VerificationPath    string     `json:"verificationPath,omitempty"`
+		VerificationURL     string     `json:"verificationUrl,omitempty"`
+		ExpiresAt           *time.Time `json:"expiresAt,omitempty"`
+		PollIntervalSeconds int        `json:"pollIntervalSeconds,omitempty"`
+	}
+	if err := s.postJSON(ctx, "/v1/auth/cli/sessions", map[string]any{"baseUrl": strings.TrimSpace(oauthBaseURL)}, &resp, nil); err != nil {
+		return nil, err
+	}
+
+	out := &CLILoginSession{
+		SessionID:        strings.TrimSpace(resp.SessionID),
+		SessionSecret:    strings.TrimSpace(resp.SessionSecret),
+		VerificationPath: strings.TrimSpace(resp.VerificationPath),
+		VerificationURL:  strings.TrimSpace(resp.VerificationURL),
+		ExpiresAt:        derefTime(resp.ExpiresAt),
+		PollInterval:     2 * time.Second,
+	}
+	if resp.PollIntervalSeconds > 0 {
+		out.PollInterval = time.Duration(resp.PollIntervalSeconds) * time.Second
+	}
+
+	if out.VerificationURL == "" && out.VerificationPath != "" {
+		base, err := url.Parse(strings.TrimSpace(oauthBaseURL))
+		if err == nil {
+			rel, relErr := url.Parse(out.VerificationPath)
+			if relErr == nil {
+				out.VerificationURL = base.ResolveReference(rel).String()
+			}
+		}
+	}
+	if out.SessionID == "" || out.SessionSecret == "" || out.VerificationURL == "" {
+		return nil, errors.New("invalid create cli login session response")
+	}
+	return out, nil
+}
+
+func (s *Service) PollCLILoginSession(ctx context.Context, sessionID string, sessionSecret string) (*CLILoginSessionPoll, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	sessionSecret = strings.TrimSpace(sessionSecret)
+	if sessionID == "" || sessionSecret == "" {
+		return nil, errors.New("session id and secret are required")
+	}
+
+	var resp struct {
+		Status string `json:"status,omitempty"`
+		Login  *struct {
+			UserID               string     `json:"userId,omitempty"`
+			Roles                []string   `json:"roles,omitempty"`
+			AccessToken          string     `json:"accessToken,omitempty"`
+			RefreshToken         string     `json:"refreshToken,omitempty"`
+			AccessTokenExpiresAt *time.Time `json:"accessTokenExpiresAt,omitempty"`
+		} `json:"login,omitempty"`
+	}
+	path := fmt.Sprintf("/v1/auth/cli/sessions/%s:poll", url.PathEscape(sessionID))
+	if err := s.postJSON(ctx, path, map[string]any{"sessionSecret": sessionSecret}, &resp, nil); err != nil {
+		return nil, err
+	}
+
+	out := &CLILoginSessionPoll{Status: strings.TrimSpace(resp.Status)}
+	if resp.Login != nil {
+		out.Login = &CLILoginSessionLogin{
+			UserID:               strings.TrimSpace(resp.Login.UserID),
+			Roles:                resp.Login.Roles,
+			AccessToken:          strings.TrimSpace(resp.Login.AccessToken),
+			RefreshToken:         strings.TrimSpace(resp.Login.RefreshToken),
+			AccessTokenExpiresAt: resp.Login.AccessTokenExpiresAt,
+		}
+	}
+	return out, nil
+}
+
+func (s *Service) CancelCLILoginSession(ctx context.Context, sessionID string, sessionSecret string) error {
+	sessionID = strings.TrimSpace(sessionID)
+	sessionSecret = strings.TrimSpace(sessionSecret)
+	if sessionID == "" || sessionSecret == "" {
+		return errors.New("session id and secret are required")
+	}
+	path := fmt.Sprintf("/v1/auth/cli/sessions/%s:cancel", url.PathEscape(sessionID))
+	return s.postJSON(ctx, path, map[string]any{"sessionSecret": sessionSecret}, nil, nil)
+}
+
 type SignupInput struct {
 	Email    string
 	Username string
@@ -394,25 +501,57 @@ func (s *Service) Signup(ctx context.Context, in SignupInput) (*session.Session,
 	if err := s.postJSON(ctx, "/v1/auth/register", payload, &resp, nil); err != nil {
 		return nil, err
 	}
-
-	sess := &session.Session{
-		BaseURL:              s.baseURL,
+	return s.saveSessionFromLogin(ctx, loginResult{
 		UserID:               resp.UserID,
-		Username:             strings.TrimSpace(in.Username),
 		Roles:                resp.Roles,
 		AccessToken:          resp.AccessToken,
 		RefreshToken:         resp.RefreshToken,
-		AccessTokenExpiresAt: derefTime(resp.AccessTokenExpiresAt),
+		AccessTokenExpiresAt: resp.AccessTokenExpiresAt,
+		Username:             strings.TrimSpace(in.Username),
+	})
+}
+
+type loginResult struct {
+	UserID               string
+	Roles                []string
+	AccessToken          string
+	RefreshToken         string
+	AccessTokenExpiresAt *time.Time
+	Username             string
+}
+
+func (s *Service) SaveLoginResult(ctx context.Context, in *CLILoginSessionLogin) (*session.Session, error) {
+	if in == nil {
+		return nil, errors.New("login result must not be nil")
+	}
+	return s.saveSessionFromLogin(ctx, loginResult{
+		UserID:               in.UserID,
+		Roles:                in.Roles,
+		AccessToken:          in.AccessToken,
+		RefreshToken:         in.RefreshToken,
+		AccessTokenExpiresAt: in.AccessTokenExpiresAt,
+	})
+}
+
+func (s *Service) saveSessionFromLogin(ctx context.Context, in loginResult) (*session.Session, error) {
+	if s.store == nil {
+		return nil, errors.New("session store is not configured")
+	}
+
+	sess := &session.Session{
+		BaseURL:              s.baseURL,
+		UserID:               strings.TrimSpace(in.UserID),
+		Username:             strings.TrimSpace(in.Username),
+		Roles:                in.Roles,
+		AccessToken:          strings.TrimSpace(in.AccessToken),
+		RefreshToken:         strings.TrimSpace(in.RefreshToken),
+		AccessTokenExpiresAt: derefTime(in.AccessTokenExpiresAt),
 	}
 	if err := s.store.Save(sess); err != nil {
 		return nil, err
 	}
 	_, _ = s.EnsureUsername(ctx)
-	sess, err := s.store.Load()
-	if err != nil {
-		return nil, err
-	}
-	return sess, nil
+	return s.store.Load()
 }
 
 // GetMyProfile fetches the authenticated user's profile from the users service.
@@ -531,6 +670,14 @@ func (s *Service) credential(ctx context.Context) (*clientv1.Credential, error) 
 }
 
 func (s *Service) refresh(ctx context.Context) error {
+	return s.refreshWithMode(ctx, false)
+}
+
+func (s *Service) refreshForced(ctx context.Context) error {
+	return s.refreshWithMode(ctx, true)
+}
+
+func (s *Service) refreshWithMode(ctx context.Context, force bool) error {
 	if s.store == nil {
 		return errors.New("session store is not configured")
 	}
@@ -544,7 +691,7 @@ func (s *Service) refresh(ctx context.Context) error {
 	if latest == nil {
 		return nil
 	}
-	if strings.TrimSpace(latest.AccessToken) != "" && !tokenExpiringSoon(latest.AccessTokenExpiresAt) {
+	if !force && strings.TrimSpace(latest.AccessToken) != "" && !tokenExpiringSoon(latest.AccessTokenExpiresAt) {
 		return nil
 	}
 	if strings.TrimSpace(latest.RefreshToken) == "" {
@@ -580,6 +727,74 @@ func derefTime(t *time.Time) time.Time {
 		return time.Time{}
 	}
 	return t.UTC()
+}
+
+type authRetryKey struct{}
+
+type authRetryRoundTripper struct {
+	base http.RoundTripper
+	svc  *Service
+}
+
+func (t *authRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+
+	resp, err := base.RoundTrip(req)
+	if err != nil || resp == nil {
+		return resp, err
+	}
+	if resp.StatusCode != http.StatusUnauthorized {
+		return resp, nil
+	}
+	if req == nil || req.Context() == nil {
+		return resp, nil
+	}
+	if req.Context().Value(authRetryKey{}) != nil {
+		return resp, nil
+	}
+
+	if req.Header.Get("Authorization") == "" {
+		return resp, nil
+	}
+	if t.svc == nil {
+		return resp, nil
+	}
+
+	if req.Body != nil && req.GetBody == nil {
+		return resp, nil
+	}
+
+	if req.URL != nil && strings.HasPrefix(req.URL.Path, "/v1/auth/token/refresh") {
+		return resp, nil
+	}
+
+	_ = resp.Body.Close()
+
+	if err := t.svc.refreshForced(req.Context()); err != nil {
+		return nil, err
+	}
+	cred, err := t.svc.credential(req.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	retryCtx := context.WithValue(req.Context(), authRetryKey{}, true)
+	retryReq := req.Clone(retryCtx)
+	if req.GetBody != nil {
+		body, bodyErr := req.GetBody()
+		if bodyErr != nil {
+			return nil, bodyErr
+		}
+		retryReq.Body = body
+	}
+	retryReq.Header.Del("Authorization")
+	if cred != nil && strings.TrimSpace(cred.Value) != "" {
+		retryReq.Header.Set(cred.Header, cred.Value)
+	}
+	return base.RoundTrip(retryReq)
 }
 
 func (s *Service) getJSON(ctx context.Context, path string, out any, headers http.Header) error {

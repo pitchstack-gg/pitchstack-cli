@@ -36,6 +36,7 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 		},
 		Commands: []*cli.Command{
 			newLoginCommand(),
+			newAuthCommand(),
 			newSignupCommand(),
 			newWhoamiCommand(),
 			newLogoutCommand(),

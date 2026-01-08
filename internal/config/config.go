@@ -16,6 +16,7 @@ type Config struct {
 
 type Profile struct {
 	BaseURL        string `json:"baseUrl,omitempty"`
+	OAuthBaseURL   string `json:"oauthBaseUrl,omitempty"`
 	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
 }
 
@@ -31,6 +32,7 @@ func Default() *Config {
 		Profiles: map[string]Profile{
 			"default": {
 				BaseURL:        "https://api.pitchstack.gg",
+				OAuthBaseURL:   "https://auth.pitchstack.gg",
 				TimeoutSeconds: 30,
 			},
 		},
@@ -73,6 +75,18 @@ func Load(path string) (*Config, error) {
 	}
 	if cfg.Profiles == nil || len(cfg.Profiles) == 0 {
 		cfg.Profiles = Default().Profiles
+	} else {
+		def := Default()
+		defProf, _ := def.Profile("default")
+		for name, prof := range cfg.Profiles {
+			if strings.TrimSpace(prof.BaseURL) == "" {
+				prof.BaseURL = defProf.BaseURL
+			}
+			if strings.TrimSpace(prof.OAuthBaseURL) == "" {
+				prof.OAuthBaseURL = defProf.OAuthBaseURL
+			}
+			cfg.Profiles[name] = prof
+		}
 	}
 	return &cfg, nil
 }

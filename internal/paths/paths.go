@@ -3,6 +3,8 @@ package paths
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 )
 
 func appConfigDir() string {
@@ -23,4 +25,13 @@ func DefaultConfigPath() string {
 
 func DefaultSessionPath() string {
 	return filepath.Join(appConfigDir(), "session.json")
+}
+
+func SessionPath(profileName string) string {
+	profileName = strings.TrimSpace(profileName)
+	if profileName == "" {
+		profileName = "default"
+	}
+	safe := regexp.MustCompile(`[^a-zA-Z0-9._-]+`).ReplaceAllString(profileName, "_")
+	return filepath.Join(appConfigDir(), "sessions", safe+".json")
 }

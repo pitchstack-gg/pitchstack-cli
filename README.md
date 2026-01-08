@@ -39,7 +39,7 @@ go run ./cmd/pitchstack config init
 2) Login:
 
 ```sh
-go run ./cmd/pitchstack login --email you@example.com
+go run ./cmd/pitchstack login
 ```
 
 3) Verify session:
@@ -107,4 +107,11 @@ go run ./cmd/pitchstack profile socials remove --platform bluesky
 ## Files
 
 - Config: `$(user config dir)/pitchstack/config.json`
-- Session (tokens): `$(user config dir)/pitchstack/session.json` (chmod 600)
+- Session (tokens): `$(user config dir)/pitchstack/sessions/<profile>.json` (chmod 600)
+
+## Config
+
+Each profile supports:
+
+- `baseUrl`: API base URL (default `https://api.pitchstack.gg`)
+- `oauthBaseUrl`: OAuth web base URL used for browser login (default `https://auth.pitchstack.gg`)
