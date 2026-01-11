@@ -30,8 +30,67 @@ func newCollectionsPermissionsCommand() *cli.Command {
 		Name:  "permissions",
 		Usage: "Manage collection access permissions",
 		Commands: []*cli.Command{
+			newCollectionsPermissionsGetCommand(),
+			newCollectionsPermissionsListCommand(),
 			newCollectionsPermissionsGrantCommand(),
 			newCollectionsPermissionsRevokeCommand(),
+		},
+	}
+}
+
+func newCollectionsPermissionsGetCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "get",
+		Usage: "Get your effective permission for a collection",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			st, err := getState(ctx)
+			if err != nil {
+				return err
+			}
+
+			resp, err := st.Service.GetCollectionAccess(ctx, &clientv1.GetCollectionAccessRequest{
+				CollectionID: strings.TrimSpace(cmd.String("collection-id")),
+			})
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, resp)
+		},
+	}
+}
+
+func newCollectionsPermissionsListCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "list",
+		Usage: "List explicit access grants for a collection",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
+			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
+			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			st, err := getState(ctx)
+			if err != nil {
+				return err
+			}
+
+			req := &clientv1.ListCollectionAccessGrantsRequest{
+				CollectionID: strings.TrimSpace(cmd.String("collection-id")),
+				NextToken:    strings.TrimSpace(cmd.String("next-token")),
+			}
+			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
+				ps := int32(cmd.Int("page-size"))
+				req.PageSize = &ps
+			}
+
+			resp, err := st.Service.ListCollectionAccessGrants(ctx, req)
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, resp)
 		},
 	}
 }

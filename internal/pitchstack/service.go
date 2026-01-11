@@ -180,6 +180,38 @@ func (s *Service) RevokeCollectionAccess(ctx context.Context, request *clientv1.
 	return c.RevokeCollectionAccess(ctx, request)
 }
 
+func (s *Service) GetCollectionAccess(ctx context.Context, request *clientv1.GetCollectionAccessRequest) (*clientv1.GetCollectionAccessResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetCollectionAccess(ctx, request)
+}
+
+func (s *Service) ListCollectionAccessGrants(ctx context.Context, request *clientv1.ListCollectionAccessGrantsRequest) (*clientv1.ListCollectionAccessGrantsResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListCollectionAccessGrants(ctx, request)
+}
+
+func (s *Service) GetDeckAccess(ctx context.Context, request *clientv1.GetDeckAccessRequest) (*clientv1.GetDeckAccessResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetDeckAccess(ctx, request)
+}
+
+func (s *Service) ListDeckAccessGrants(ctx context.Context, request *clientv1.ListDeckAccessGrantsRequest) (*clientv1.ListDeckAccessGrantsResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListDeckAccessGrants(ctx, request)
+}
+
 func (s *Service) ListCollectionItems(ctx context.Context, request *clientv1.ListCollectionItemsRequest) (*clientv1.ListCollectionItemsResponse, error) {
 	c, err := s.client(true)
 	if err != nil {

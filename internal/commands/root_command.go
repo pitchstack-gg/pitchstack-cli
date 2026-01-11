@@ -43,6 +43,7 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 			newProfileCommand(),
 			newCardsCommand(),
 			newCollectionsCommand(),
+			newDecksCommand(),
 			newSyncCommand(),
 			newConfigCommand(),
 			newVersionCommand(),
