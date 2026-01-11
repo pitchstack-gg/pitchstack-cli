@@ -164,6 +164,22 @@ func (s *Service) DeleteCollection(ctx context.Context, request *clientv1.Delete
 	return c.DeleteCollection(ctx, request)
 }
 
+func (s *Service) GrantCollectionAccess(ctx context.Context, request *clientv1.GrantCollectionAccessRequest) (*clientv1.GrantCollectionAccessResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GrantCollectionAccess(ctx, request)
+}
+
+func (s *Service) RevokeCollectionAccess(ctx context.Context, request *clientv1.RevokeCollectionAccessRequest) (*clientv1.RevokeCollectionAccessResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.RevokeCollectionAccess(ctx, request)
+}
+
 func (s *Service) ListCollectionItems(ctx context.Context, request *clientv1.ListCollectionItemsRequest) (*clientv1.ListCollectionItemsResponse, error) {
 	c, err := s.client(true)
 	if err != nil {

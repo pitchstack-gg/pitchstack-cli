@@ -19,7 +19,101 @@ func newCollectionsCommand() *cli.Command {
 			newCollectionsCreateCommand(),
 			newCollectionsUpdateCommand(),
 			newCollectionsDeleteCommand(),
+			newCollectionsPermissionsCommand(),
 			newCollectionItemsCommand(),
+		},
+	}
+}
+
+func newCollectionsPermissionsCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "permissions",
+		Usage: "Manage collection access permissions",
+		Commands: []*cli.Command{
+			newCollectionsPermissionsGrantCommand(),
+			newCollectionsPermissionsRevokeCommand(),
+		},
+	}
+}
+
+func newCollectionsPermissionsGrantCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "grant",
+		Usage: "Grant a user access to a collection",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
+			&cli.StringFlag{Name: "subject-id", Usage: "User ID to grant access to", Required: true},
+			&cli.StringFlag{Name: "permission", Usage: "Permission (reader|writer)", Required: true},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			st, err := getState(ctx)
+			if err != nil {
+				return err
+			}
+
+			perm := parseCollectionPermission(cmd.String("permission"))
+			if perm == clientv1.CollectionPermissionUnspecified {
+				return cli.Exit("--permission must be reader|writer", 2)
+			}
+
+			collectionID := strings.TrimSpace(cmd.String("collection-id"))
+			subjectID := strings.TrimSpace(cmd.String("subject-id"))
+
+			if _, err := st.Service.GrantCollectionAccess(ctx, &clientv1.GrantCollectionAccessRequest{
+				CollectionID: collectionID,
+				SubjectID:    subjectID,
+				Permission:   perm,
+			}); err != nil {
+				return err
+			}
+
+			return writeJSON(cmd.Writer, map[string]any{
+				"collectionId": collectionID,
+				"subjectId":    subjectID,
+				"permission":   perm,
+				"granted":      true,
+			})
+		},
+	}
+}
+
+func newCollectionsPermissionsRevokeCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "revoke",
+		Usage: "Revoke a user's access to a collection",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
+			&cli.StringFlag{Name: "subject-id", Usage: "User ID to revoke access from", Required: true},
+			&cli.StringFlag{Name: "permission", Usage: "Permission (reader|writer)", Required: true},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			st, err := getState(ctx)
+			if err != nil {
+				return err
+			}
+
+			perm := parseCollectionPermission(cmd.String("permission"))
+			if perm == clientv1.CollectionPermissionUnspecified {
+				return cli.Exit("--permission must be reader|writer", 2)
+			}
+
+			collectionID := strings.TrimSpace(cmd.String("collection-id"))
+			subjectID := strings.TrimSpace(cmd.String("subject-id"))
+
+			if _, err := st.Service.RevokeCollectionAccess(ctx, &clientv1.RevokeCollectionAccessRequest{
+				CollectionID: collectionID,
+				SubjectID:    subjectID,
+				Permission:   perm,
+			}); err != nil {
+				return err
+			}
+
+			return writeJSON(cmd.Writer, map[string]any{
+				"collectionId": collectionID,
+				"subjectId":    subjectID,
+				"permission":   perm,
+				"revoked":      true,
+			})
 		},
 	}
 }
@@ -233,6 +327,19 @@ func parseCollectionType(v string) clientv1.CollectionType {
 		return clientv1.CollectionTypeList
 	default:
 		return clientv1.CollectionType(v)
+	}
+}
+
+func parseCollectionPermission(v string) clientv1.CollectionPermission {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "unspecified":
+		return clientv1.CollectionPermissionUnspecified
+	case "reader", "read", "r":
+		return clientv1.CollectionPermissionReader
+	case "writer", "write", "w":
+		return clientv1.CollectionPermissionWriter
+	default:
+		return clientv1.CollectionPermission(v)
 	}
 }
 
