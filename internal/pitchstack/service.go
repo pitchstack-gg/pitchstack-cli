@@ -212,6 +212,206 @@ func (s *Service) ListDeckAccessGrants(ctx context.Context, request *clientv1.Li
 	return c.ListDeckAccessGrants(ctx, request)
 }
 
+func (s *Service) ListDecks(ctx context.Context, request *clientv1.ListDecksRequest) (*clientv1.ListDecksResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListDecks(ctx, request)
+}
+
+func (s *Service) CreateDeck(ctx context.Context, request *clientv1.CreateDeckRequest) (*clientv1.CreateDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.CreateDeck(ctx, request)
+}
+
+func (s *Service) CloneDeck(ctx context.Context, request *clientv1.CloneDeckRequest) (*clientv1.CloneDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.CloneDeck(ctx, request)
+}
+
+func (s *Service) GetDeck(ctx context.Context, request *clientv1.GetDeckRequest) (*clientv1.GetDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetDeck(ctx, request)
+}
+
+func (s *Service) UpdateDeck(ctx context.Context, request *clientv1.UpdateDeckRequest) (*clientv1.UpdateDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.UpdateDeck(ctx, request)
+}
+
+func (s *Service) UpdateDeckVisibility(ctx context.Context, request *clientv1.UpdateDeckVisibilityRequest) (*clientv1.UpdateDeckVisibilityResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.UpdateDeckVisibility(ctx, request)
+}
+
+func (s *Service) DeleteDeck(ctx context.Context, request *clientv1.DeleteDeckRequest) (*clientv1.DeleteDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.DeleteDeck(ctx, request)
+}
+
+func (s *Service) SearchDecks(ctx context.Context, request *clientv1.SearchDecksRequest) (*clientv1.SearchDecksResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.SearchDecks(ctx, request)
+}
+
+func (s *Service) GrantDeckAccess(ctx context.Context, request *clientv1.GrantDeckAccessRequest) (*clientv1.GrantDeckAccessResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GrantDeckAccess(ctx, request)
+}
+
+func (s *Service) RevokeDeckAccess(ctx context.Context, request *clientv1.RevokeDeckAccessRequest) (*clientv1.RevokeDeckAccessResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.RevokeDeckAccess(ctx, request)
+}
+
+func (s *Service) ListDeckVersions(ctx context.Context, request *clientv1.ListDeckVersionsRequest) (*clientv1.ListDeckVersionsResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListDeckVersions(ctx, request)
+}
+
+func (s *Service) CreateDeckVersion(ctx context.Context, request *clientv1.CreateDeckVersionRequest) (*clientv1.CreateDeckVersionResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.CreateDeckVersion(ctx, request)
+}
+
+func (s *Service) GetDeckVersion(ctx context.Context, request *clientv1.GetDeckVersionRequest) (*clientv1.GetDeckVersionResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetDeckVersion(ctx, request)
+}
+
+func (s *Service) GetDeckVersionHistory(ctx context.Context, request *clientv1.GetDeckVersionHistoryRequest) (*clientv1.GetDeckVersionHistoryResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetDeckVersionHistory(ctx, request)
+}
+
+func (s *Service) GetDeckVersionNotes(ctx context.Context, request *clientv1.GetDeckVersionNotesRequest) (*clientv1.GetDeckVersionNotesResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.GetDeckVersionNotes(ctx, request)
+}
+
+func (s *Service) UpdateDeckVersionNotes(ctx context.Context, request *clientv1.UpdateDeckVersionNotesRequest) (*clientv1.UpdateDeckVersionNotesResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.UpdateDeckVersionNotes(ctx, request)
+}
+
+func (s *Service) ListDeckVersionSideboardGuides(ctx context.Context, request *clientv1.ListDeckVersionSideboardGuidesRequest) (*clientv1.ListDeckVersionSideboardGuidesResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListDeckVersionSideboardGuides(ctx, request)
+}
+
+func (s *Service) UpsertDeckVersionSideboardGuide(ctx context.Context, request *clientv1.UpsertDeckVersionSideboardGuideRequest) (*clientv1.UpsertDeckVersionSideboardGuideResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.UpsertDeckVersionSideboardGuide(ctx, request)
+}
+
+func (s *Service) DeleteDeckVersionSideboardGuide(ctx context.Context, request *clientv1.DeleteDeckVersionSideboardGuideRequest) (*clientv1.DeleteDeckVersionSideboardGuideResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.DeleteDeckVersionSideboardGuide(ctx, request)
+}
+
+func (s *Service) ListDeckVersionCards(ctx context.Context, request *clientv1.ListDeckVersionCardsRequest) (*clientv1.ListDeckVersionCardsResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ListDeckVersionCards(ctx, request)
+}
+
+func (s *Service) ModifyDeckVersionCard(ctx context.Context, request *clientv1.ModifyDeckVersionCardRequest) (*clientv1.ModifyDeckVersionCardResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ModifyDeckVersionCard(ctx, request)
+}
+
+func (s *Service) DeleteDeckVersion(ctx context.Context, request *clientv1.DeleteDeckVersionRequest) (*clientv1.DeleteDeckVersionResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.DeleteDeckVersion(ctx, request)
+}
+
+func (s *Service) BatchGetDecks(ctx context.Context, request *clientv1.BatchGetDecksRequest) (*clientv1.BatchGetDecksResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.BatchGetDecks(ctx, request)
+}
+
+func (s *Service) ExportDeck(ctx context.Context, request *clientv1.ExportDeckRequest) (*clientv1.ExportDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ExportDeck(ctx, request)
+}
+
+func (s *Service) ImportDeck(ctx context.Context, request *clientv1.ImportDeckRequest) (*clientv1.ImportDeckResponse, error) {
+	c, err := s.client(true)
+	if err != nil {
+		return nil, err
+	}
+	return c.ImportDeck(ctx, request)
+}
+
 func (s *Service) ListCollectionItems(ctx context.Context, request *clientv1.ListCollectionItemsRequest) (*clientv1.ListCollectionItemsResponse, error) {
 	c, err := s.client(true)
 	if err != nil {
