@@ -41,6 +41,7 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 			newWhoamiCommand(),
 			newLogoutCommand(),
 			newProfileCommand(),
+			newActivityCommand(),
 			newCardsCommand(),
 			newCollectionsCommand(),
 			newDecksCommand(),
