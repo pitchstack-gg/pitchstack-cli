@@ -15,9 +15,11 @@ type Config struct {
 }
 
 type Profile struct {
-	BaseURL        string `json:"baseUrl,omitempty"`
-	OAuthBaseURL   string `json:"oauthBaseUrl,omitempty"`
-	TimeoutSeconds int    `json:"timeoutSeconds,omitempty"`
+	BaseURL               string `json:"baseUrl,omitempty"`
+	OAuthBaseURL          string `json:"oauthBaseUrl,omitempty"`
+	TimeoutSeconds        int    `json:"timeoutSeconds,omitempty"`
+	CardsDBURL            string `json:"cardsDbUrl,omitempty"`
+	CardsDBLastUpdatedURL string `json:"cardsDbLastUpdatedUrl,omitempty"`
 }
 
 type Deps struct {
@@ -31,9 +33,11 @@ func Default() *Config {
 		CurrentProfile: "default",
 		Profiles: map[string]Profile{
 			"default": {
-				BaseURL:        "https://api.pitchstack.gg",
-				OAuthBaseURL:   "https://auth.pitchstack.gg",
-				TimeoutSeconds: 30,
+				BaseURL:               "https://api.pitchstack.gg",
+				OAuthBaseURL:          "https://auth.pitchstack.gg",
+				TimeoutSeconds:        30,
+				CardsDBURL:            "https://cards.pitchstack.gg/pitchstack/pitchstack.sqlite.gz",
+				CardsDBLastUpdatedURL: "https://cards.pitchstack.gg/pitchstack/LAST_PUBLISHED",
 			},
 		},
 	}
@@ -84,6 +88,12 @@ func Load(path string) (*Config, error) {
 			}
 			if strings.TrimSpace(prof.OAuthBaseURL) == "" {
 				prof.OAuthBaseURL = defProf.OAuthBaseURL
+			}
+			if strings.TrimSpace(prof.CardsDBURL) == "" {
+				prof.CardsDBURL = defProf.CardsDBURL
+			}
+			if strings.TrimSpace(prof.CardsDBLastUpdatedURL) == "" {
+				prof.CardsDBLastUpdatedURL = defProf.CardsDBLastUpdatedURL
 			}
 			cfg.Profiles[name] = prof
 		}
