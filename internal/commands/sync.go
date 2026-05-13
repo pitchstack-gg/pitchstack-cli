@@ -21,6 +21,8 @@ func newSyncCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newSyncChangesCommand(),
 			newSyncApplyCommand(),
+			newSyncPowerSyncConfigCommand(),
+			newSyncUploadCrudCommand(),
 			newSyncSubscriptionsCommand(),
 		},
 	}
@@ -160,6 +162,21 @@ func readBatchApplyChangesRequest(path string) (*clientv1.BatchApplyChangesReque
 		return nil, errors.New("no changes provided")
 	}
 	return &clientv1.BatchApplyChangesRequest{Changes: changes}, nil
+}
+
+func newSyncPowerSyncConfigCommand() *cli.Command {
+	return newSDKNoRequestCommand("powersync-config", "Get PowerSync client config", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
+		return c.GetPowerSyncClientConfig(ctx)
+	})
+}
+
+func newSyncUploadCrudCommand() *cli.Command {
+	return newSDKCommand("upload-crud", "Upload PowerSync CRUD entries from JSON", []cli.Flag{&cli.StringFlag{Name: "device-id", Usage: "Device ID"}}, true, func(cmd *cli.Command, req *clientv1.UploadCrudRequest) error {
+		setStringFlag(cmd, "device-id", &req.DeviceID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UploadCrudRequest) (any, error) {
+		return c.UploadCrud(ctx, req)
+	})
 }
 
 func newSyncSubscriptionsCommand() *cli.Command {

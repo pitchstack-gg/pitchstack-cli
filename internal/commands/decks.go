@@ -28,8 +28,12 @@ func newDecksCommand() *cli.Command {
 			newDecksBatchGetCommand(),
 			newDecksExportCommand(),
 			newDecksImportCommand(),
+			newDecksStarCommand(),
+			newDecksUnstarCommand(),
+			newDecksStarredCommand(),
 			newDecksPermissionsCommand(),
 			newDecksVersionsCommand(),
+			newDecksMatchesCommand(),
 		},
 	}
 }
@@ -423,8 +427,120 @@ func newDecksPermissionsCommand() *cli.Command {
 			newDecksPermissionsListCommand(),
 			newDecksPermissionsGrantCommand(),
 			newDecksPermissionsRevokeCommand(),
+			newDecksPermissionsStopShareCommand(),
 		},
 	}
+}
+
+func newDecksStarCommand() *cli.Command {
+	return newSDKCommand("star", "Star a deck", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Deck ID"}}, true, func(cmd *cli.Command, req *clientv1.StarDeckRequest) error {
+		setStringFlag(cmd, "id", &req.DeckID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StarDeckRequest) (any, error) {
+		return c.StarDeck(ctx, req)
+	})
+}
+
+func newDecksUnstarCommand() *cli.Command {
+	return newSDKCommand("unstar", "Unstar a deck", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Deck ID"}}, true, func(cmd *cli.Command, req *clientv1.UnstarDeckRequest) error {
+		setStringFlag(cmd, "id", &req.DeckID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnstarDeckRequest) (any, error) {
+		return c.UnstarDeck(ctx, req)
+	})
+}
+
+func newDecksStarredCommand() *cli.Command {
+	return newSDKCommand("starred", "List starred decks", []cli.Flag{
+		&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+		&cli.IntFlag{Name: "limit", Usage: "Limit"},
+		&cli.IntFlag{Name: "offset", Usage: "Offset"},
+	}, true, func(cmd *cli.Command, req *clientv1.ListStarredDecksRequest) error {
+		setStringFlag(cmd, "user-id", &req.UserID)
+		setInt32Flag(cmd, "limit", &req.Limit)
+		setInt32Flag(cmd, "offset", &req.Offset)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListStarredDecksRequest) (any, error) {
+		return c.ListStarredDecks(ctx, req)
+	})
+}
+
+func newDecksPermissionsStopShareCommand() *cli.Command {
+	return newSDKCommand("stop-share", "Remove all explicit deck shares", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}}, true, func(cmd *cli.Command, req *clientv1.StopDeckShareRequest) error {
+		setStringFlag(cmd, "deck-id", &req.DeckID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StopDeckShareRequest) (any, error) {
+		return c.StopDeckShare(ctx, req)
+	})
+}
+
+func newDecksMatchesCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "matches",
+		Usage: "Manage deck version match records",
+		Commands: []*cli.Command{
+			newSDKCommand("create", "Create a deck version match", []cli.Flag{
+				&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID"},
+				&cli.StringFlag{Name: "match-id", Usage: "Match ID"},
+				&cli.StringFlag{Name: "played-at", Usage: "Played time (RFC3339)"},
+				&cli.StringFlag{Name: "result", Usage: "Result"},
+				&cli.StringFlag{Name: "opponent-hero-id", Usage: "Opponent hero ID"},
+				&cli.StringFlag{Name: "opponent", Usage: "Opponent"},
+				&cli.BoolFlag{Name: "went-first", Usage: "Went first"},
+				&cli.StringFlag{Name: "event-type", Usage: "Event type"},
+				&cli.StringFlag{Name: "notes", Usage: "Notes"},
+				&cli.StringFlag{Name: "location", Usage: "Location"},
+			}, true, func(cmd *cli.Command, req *clientv1.CreateDeckVersionMatchRequest) error {
+				setStringFlag(cmd, "deck-version-id", &req.DeckVersionID)
+				setStringFlag(cmd, "match-id", &req.MatchID)
+				if err := setTimeFlag(cmd, "played-at", &req.PlayedAt); err != nil {
+					return err
+				}
+				if cmd.IsSet("result") {
+					req.Result = clientv1.DeckVersionMatchResult(cmd.String("result"))
+				}
+				setStringFlag(cmd, "opponent-hero-id", &req.OpponentHeroID)
+				setStringFlag(cmd, "opponent", &req.Opponent)
+				setBoolFlag(cmd, "went-first", &req.WentFirst)
+				setStringFlag(cmd, "event-type", &req.EventType)
+				setStringFlag(cmd, "notes", &req.Notes)
+				setStringFlag(cmd, "location", &req.Location)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.CreateDeckVersionMatchRequest) (any, error) {
+				return c.CreateDeckVersionMatch(ctx, req)
+			}),
+			newSDKCommand("list", "List deck version matches", append(pageFlags(), &cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID"}), true, func(cmd *cli.Command, req *clientv1.ListDeckVersionMatchesRequest) error {
+				setStringFlag(cmd, "deck-version-id", &req.DeckVersionID)
+				setPageFlags(cmd, &req.PageSize, &req.NextToken)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListDeckVersionMatchesRequest) (any, error) {
+				return c.ListDeckVersionMatches(ctx, req)
+			}),
+			newSDKCommand("get", "Get a deck version match", deckMatchIDFlags(), true, applyDeckMatchIDFlags, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetDeckVersionMatchRequest) (any, error) {
+				return c.GetDeckVersionMatch(ctx, req)
+			}),
+			newSDKCommand("delete", "Delete a deck version match", deckMatchIDFlags(), true, func(cmd *cli.Command, req *clientv1.DeleteDeckVersionMatchRequest) error {
+				setStringFlag(cmd, "deck-version-id", &req.DeckVersionID)
+				setStringFlag(cmd, "match-id", &req.MatchID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeleteDeckVersionMatchRequest) (any, error) {
+				return c.DeleteDeckVersionMatch(ctx, req)
+			}),
+		},
+	}
+}
+
+func deckMatchIDFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID"},
+		&cli.StringFlag{Name: "match-id", Usage: "Match ID"},
+	}
+}
+
+func applyDeckMatchIDFlags(cmd *cli.Command, req *clientv1.GetDeckVersionMatchRequest) error {
+	setStringFlag(cmd, "deck-version-id", &req.DeckVersionID)
+	setStringFlag(cmd, "match-id", &req.MatchID)
+	return nil
 }
 
 func newDecksPermissionsGetCommand() *cli.Command {

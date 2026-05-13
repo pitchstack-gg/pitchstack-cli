@@ -16,9 +16,14 @@ func newCollectionsCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newCollectionsListCommand(),
 			newCollectionsGetCommand(),
+			newCollectionsHistoryCommand(),
+			newCollectionsBatchGetCommand(),
 			newCollectionsCreateCommand(),
 			newCollectionsUpdateCommand(),
 			newCollectionsDeleteCommand(),
+			newCollectionsExportCommand(),
+			newCollectionsImportCommand(),
+			newCollectionsValuationCommand(),
 			newCollectionsPermissionsCommand(),
 			newCollectionItemsCommand(),
 		},
@@ -34,6 +39,7 @@ func newCollectionsPermissionsCommand() *cli.Command {
 			newCollectionsPermissionsListCommand(),
 			newCollectionsPermissionsGrantCommand(),
 			newCollectionsPermissionsRevokeCommand(),
+			newCollectionsPermissionsStopShareCommand(),
 		},
 	}
 }
@@ -177,6 +183,15 @@ func newCollectionsPermissionsRevokeCommand() *cli.Command {
 	}
 }
 
+func newCollectionsPermissionsStopShareCommand() *cli.Command {
+	return newSDKCommand("stop-share", "Remove all explicit collection shares", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}}, true, func(cmd *cli.Command, req *clientv1.StopCollectionShareRequest) error {
+		setStringFlag(cmd, "collection-id", &req.CollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StopCollectionShareRequest) (any, error) {
+		return c.StopCollectionShare(ctx, req)
+	})
+}
+
 func newCollectionsListCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "list",
@@ -232,6 +247,32 @@ func newCollectionsGetCommand() *cli.Command {
 			return writeJSON(cmd.Writer, resp)
 		},
 	}
+}
+
+func newCollectionsHistoryCommand() *cli.Command {
+	return newSDKCommand("history", "Get collection history", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Collection ID"}}, true, func(cmd *cli.Command, req *clientv1.GetCollectionHistoryRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetCollectionHistoryRequest) (any, error) {
+		return c.GetCollectionHistory(ctx, req)
+	})
+}
+
+func newCollectionsBatchGetCommand() *cli.Command {
+	return newSDKCommand("batch-get", "Batch get collections", []cli.Flag{
+		repeatedIDsFlag("id", "Collection ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCollectionsRequest) error {
+		if cmd.IsSet("id") {
+			req.CollectionIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetCollectionsRequest) (any, error) {
+		return c.BatchGetCollections(ctx, req)
+	})
 }
 
 func newCollectionsCreateCommand() *cli.Command {
@@ -357,6 +398,52 @@ func newCollectionsDeleteCommand() *cli.Command {
 	}
 }
 
+func newCollectionsExportCommand() *cli.Command {
+	return newSDKCommand("export", "Export a collection", append(pageFlags(), &cli.StringFlag{Name: "id", Usage: "Collection ID"}), true, func(cmd *cli.Command, req *clientv1.ExportCollectionRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ExportCollectionRequest) (any, error) {
+		return c.ExportCollection(ctx, req)
+	})
+}
+
+func newCollectionsImportCommand() *cli.Command {
+	return newSDKCommand("import", "Import a collection from JSON", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Collection ID"},
+		&cli.StringFlag{Name: "name", Usage: "Collection name"},
+		&cli.StringFlag{Name: "type", Usage: "Collection type"},
+		&cli.StringFlag{Name: "description", Usage: "Description"},
+		&cli.StringFlag{Name: "visibility", Usage: "Visibility"},
+	}, true, func(cmd *cli.Command, req *clientv1.ImportCollectionRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		setStringFlag(cmd, "name", &req.Name)
+		if cmd.IsSet("type") {
+			req.CollectionType = parseCollectionType(cmd.String("type"))
+		}
+		setStringFlag(cmd, "description", &req.Description)
+		if cmd.IsSet("visibility") {
+			req.Visibility = parseVisibility(cmd.String("visibility"))
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ImportCollectionRequest) (any, error) {
+		return c.ImportCollection(ctx, req)
+	})
+}
+
+func newCollectionsValuationCommand() *cli.Command {
+	return newSDKCommand("valuation", "Get collection valuation", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Collection ID"},
+		&cli.StringFlag{Name: "source", Usage: "Price source"},
+	}, true, func(cmd *cli.Command, req *clientv1.GetCollectionValuationRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		setStringFlag(cmd, "source", &req.Source)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetCollectionValuationRequest) (any, error) {
+		return c.GetCollectionValuation(ctx, req)
+	})
+}
+
 func parseCollectionScope(v string) clientv1.CollectionListScope {
 	switch strings.ToLower(strings.TrimSpace(v)) {
 	case "", "unspecified":
@@ -426,6 +513,9 @@ func newCollectionItemsCommand() *cli.Command {
 			newCollectionItemsGetCommand(),
 			newCollectionItemsAddCommand(),
 			newCollectionItemsUpdateCommand(),
+			newCollectionItemsAdjustCommand(),
+			newCollectionItemsTransferCommand(),
+			newCollectionItemsBatchGetCommand(),
 			newCollectionItemsDeleteCommand(),
 		},
 	}
@@ -586,6 +676,65 @@ func newCollectionItemsUpdateCommand() *cli.Command {
 			return writeJSON(cmd.Writer, resp)
 		},
 	}
+}
+
+func newCollectionItemsAdjustCommand() *cli.Command {
+	return newSDKCommand("adjust", "Adjust collection item quantity", []cli.Flag{
+		&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"},
+		&cli.StringFlag{Name: "product-id", Usage: "Product ID"},
+		&cli.StringFlag{Name: "condition", Usage: "Condition"},
+		&cli.IntFlag{Name: "quantity-delta", Usage: "Quantity delta"},
+		&cli.StringFlag{Name: "item-id", Usage: "Item ID"},
+		&cli.StringFlag{Name: "client-mutation-id", Usage: "Client mutation ID"},
+	}, true, func(cmd *cli.Command, req *clientv1.AdjustCollectionItemQuantityRequest) error {
+		setStringFlag(cmd, "collection-id", &req.CollectionID)
+		setStringFlag(cmd, "product-id", &req.ProductID)
+		if cmd.IsSet("condition") {
+			cond, ok := parseCondition(cmd.String("condition"))
+			if !ok {
+				return cli.Exit("--condition must be near_mint|lightly_played|heavily_played|damaged", 2)
+			}
+			req.Condition = cond
+		}
+		if cmd.IsSet("quantity-delta") {
+			req.QuantityDelta = int32(cmd.Int("quantity-delta"))
+		}
+		setStringFlag(cmd, "item-id", &req.ItemID)
+		setStringFlag(cmd, "client-mutation-id", &req.ClientMutationID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.AdjustCollectionItemQuantityRequest) (any, error) {
+		return c.AdjustCollectionItemQuantity(ctx, req)
+	})
+}
+
+func newCollectionItemsTransferCommand() *cli.Command {
+	return newSDKCommand("transfer", "Transfer an item to another collection", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Item ID"},
+		&cli.StringFlag{Name: "destination-collection-id", Usage: "Destination collection ID"},
+	}, true, func(cmd *cli.Command, req *clientv1.TransferCollectionItemRequest) error {
+		setStringFlag(cmd, "id", &req.ItemID)
+		setStringFlag(cmd, "destination-collection-id", &req.DestinationCollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.TransferCollectionItemRequest) (any, error) {
+		return c.TransferCollectionItem(ctx, req)
+	})
+}
+
+func newCollectionItemsBatchGetCommand() *cli.Command {
+	return newSDKCommand("batch-get", "Batch get collection items", []cli.Flag{
+		repeatedIDsFlag("id", "Item ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCollectionItemsRequest) error {
+		if cmd.IsSet("id") {
+			req.ItemIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetCollectionItemsRequest) (any, error) {
+		return c.BatchGetCollectionItems(ctx, req)
+	})
 }
 
 func newCollectionItemsDeleteCommand() *cli.Command {

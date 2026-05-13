@@ -16,13 +16,37 @@ func newCardsCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newCardsSearchCommand(),
 			newCardsGetCommand(),
+			newCardsBatchGetCommand(),
 			newCardsPrintingsCommand(),
 			newCardsPrintingCommand(),
+			newCardsPrintingsBatchCommand(),
 			newCardsPrintingsSetCommand(),
 			newCardsProductCommand(),
+			newCardsProductsCommand(),
+			newCardsProductsBatchCommand(),
+			newCardsSetCommand(),
+			newCardsSetsCommand(),
+			newCardsSetsBatchCommand(),
 			newCardsSnapshotCommand(),
 		},
 	}
+}
+
+func newCardsBatchGetCommand() *cli.Command {
+	return newSDKCommand("batch-get", "Batch get cards", []cli.Flag{
+		repeatedIDsFlag("id", "Card ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCardsRequest) error {
+		if cmd.IsSet("id") {
+			req.CardIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetCardsRequest) (any, error) {
+		return c.BatchGetCards(ctx, req)
+	})
 }
 
 func newCardsSearchCommand() *cli.Command {
@@ -120,6 +144,23 @@ func newCardsSearchCommand() *cli.Command {
 	}
 }
 
+func newCardsPrintingsBatchCommand() *cli.Command {
+	return newSDKCommand("printings-batch", "Batch get printings", []cli.Flag{
+		repeatedIDsFlag("id", "Printing ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetPrintingsRequest) error {
+		if cmd.IsSet("id") {
+			req.PrintingIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetPrintingsRequest) (any, error) {
+		return c.BatchGetPrintings(ctx, req)
+	})
+}
+
 func newCardsGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
@@ -139,6 +180,78 @@ func newCardsGetCommand() *cli.Command {
 			return writeJSON(cmd.Writer, resp)
 		},
 	}
+}
+
+func newCardsProductsCommand() *cli.Command {
+	return newSDKCommand("products", "List products", append(pageFlags(),
+		&cli.StringFlag{Name: "type", Usage: "Product type"},
+		&cli.StringFlag{Name: "set-code", Usage: "Set code"},
+		&cli.StringFlag{Name: "product-group-id", Usage: "Product group ID"},
+		&cli.StringFlag{Name: "card-id", Usage: "Card ID"},
+		&cli.StringFlag{Name: "printing-id", Usage: "Printing ID"},
+	), true, func(cmd *cli.Command, req *clientv1.ListProductsRequest) error {
+		setStringFlag(cmd, "type", &req.Type)
+		setStringFlag(cmd, "set-code", &req.SetCode)
+		setStringFlag(cmd, "product-group-id", &req.ProductGroupID)
+		setStringFlag(cmd, "card-id", &req.CardID)
+		setStringFlag(cmd, "printing-id", &req.PrintingID)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListProductsRequest) (any, error) {
+		return c.ListProducts(ctx, req)
+	})
+}
+
+func newCardsProductsBatchCommand() *cli.Command {
+	return newSDKCommand("products-batch", "Batch get products", []cli.Flag{
+		repeatedIDsFlag("id", "Product ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetProductsRequest) error {
+		if cmd.IsSet("id") {
+			req.ProductIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetProductsRequest) (any, error) {
+		return c.BatchGetProducts(ctx, req)
+	})
+}
+
+func newCardsSetCommand() *cli.Command {
+	return newSDKCommand("set", "Get a set", []cli.Flag{&cli.StringFlag{Name: "code", Usage: "Set code"}}, true, func(cmd *cli.Command, req *clientv1.GetSetRequest) error {
+		setStringFlag(cmd, "code", &req.SetCode)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetSetRequest) (any, error) {
+		return c.GetSet(ctx, req)
+	})
+}
+
+func newCardsSetsCommand() *cli.Command {
+	return newSDKCommand("sets", "List sets", pageFlags(), true, func(cmd *cli.Command, req *clientv1.ListSetsRequest) error {
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListSetsRequest) (any, error) {
+		return c.ListSets(ctx, req)
+	})
+}
+
+func newCardsSetsBatchCommand() *cli.Command {
+	return newSDKCommand("sets-batch", "Batch get sets", []cli.Flag{
+		repeatedIDsFlag("code", "Set code (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetSetsRequest) error {
+		if cmd.IsSet("code") {
+			req.SetCodes = splitCSV(cmd.StringSlice("code"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetSetsRequest) (any, error) {
+		return c.BatchGetSets(ctx, req)
+	})
 }
 
 func newCardsPrintingsCommand() *cli.Command {

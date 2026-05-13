@@ -62,6 +62,18 @@ func (s *Service) client(withCreds bool) (*clientv1.Client, error) {
 	return clientv1.NewClient(opts...)
 }
 
+func (s *Service) AuthenticatedClient() (*clientv1.Client, error) {
+	return s.client(true)
+}
+
+func (s *Service) UnauthenticatedClient() (*clientv1.Client, error) {
+	return s.client(false)
+}
+
+func (s *Service) HTTPClient() *http.Client {
+	return &http.Client{Timeout: s.timeout}
+}
+
 func (s *Service) Login(ctx context.Context, in LoginInput) (*session.Session, error) {
 	if s.store == nil {
 		return nil, errors.New("session store is not configured")

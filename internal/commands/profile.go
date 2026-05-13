@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	clientv1 "github.com/pitchstack-gg/pitchstack-go/client/v1"
@@ -15,9 +16,13 @@ func newProfileCommand() *cli.Command {
 		Usage: "User profile commands",
 		Commands: []*cli.Command{
 			newProfileGetCommand(),
+			newProfileSearchCommand(),
 			newProfileUpdateCommand(),
 			newProfileSettingsCommand(),
 			newProfileAvatarCommand(),
+			newProfileBackgroundCommand(),
+			newProfilePinsCommand(),
+			newProfilePrivacyCommand(),
 			newProfileSocialsCommand(),
 		},
 	}
@@ -52,6 +57,16 @@ func newProfileGetCommand() *cli.Command {
 			return writeJSON(cmd.Writer, resp)
 		},
 	}
+}
+
+func newProfileSearchCommand() *cli.Command {
+	return newSDKCommand("search", "Search users", append(pageFlags(), &cli.StringFlag{Name: "q", Usage: "Username prefix"}), true, func(cmd *cli.Command, req *clientv1.SearchUsersRequest) error {
+		setStringFlag(cmd, "q", &req.SearchTerm)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.SearchUsersRequest) (any, error) {
+		return c.SearchUsers(ctx, req)
+	})
 }
 
 func newProfileUpdateCommand() *cli.Command {
@@ -249,6 +264,206 @@ func newProfileAvatarCommand() *cli.Command {
 					return writeJSON(cmd.Writer, resp)
 				},
 			},
+			newSDKCommand("begin", "Begin avatar upload", []cli.Flag{
+				&cli.StringFlag{Name: "content-type", Usage: "Content type"},
+				&cli.IntFlag{Name: "content-length", Usage: "Content length"},
+			}, true, func(cmd *cli.Command, req *clientv1.BeginAvatarUploadRequest) error {
+				setStringFlag(cmd, "content-type", &req.ContentType)
+				setInt64Flag(cmd, "content-length", &req.ContentLength)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BeginAvatarUploadRequest) (any, error) {
+				return c.BeginAvatarUpload(ctx, req)
+			}),
+			newSDKCommand("complete", "Complete avatar upload", []cli.Flag{&cli.StringFlag{Name: "upload-id", Usage: "Upload ID"}}, true, func(cmd *cli.Command, req *clientv1.CompleteAvatarUploadRequest) error {
+				setStringFlag(cmd, "upload-id", &req.UploadID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.CompleteAvatarUploadRequest) (any, error) {
+				return c.CompleteAvatarUpload(ctx, req)
+			}),
+			newProfileAvatarUploadCommand(),
+		},
+	}
+}
+
+func newProfileAvatarUploadCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "upload",
+		Usage: "Upload and apply an avatar file",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "file", Usage: "File to upload", Required: true},
+			&cli.StringFlag{Name: "content-type", Usage: "Content type", Value: "application/octet-stream"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			st, err := getState(ctx)
+			if err != nil {
+				return err
+			}
+			c, err := st.Service.AuthenticatedClient()
+			if err != nil {
+				return err
+			}
+			filePath := cmd.String("file")
+			info, err := os.Stat(filePath)
+			if err != nil {
+				return err
+			}
+			contentLength := info.Size()
+			contentType := cmd.String("content-type")
+			begin, err := c.BeginAvatarUpload(ctx, &clientv1.BeginAvatarUploadRequest{ContentType: contentType, ContentLength: &contentLength})
+			if err != nil {
+				return err
+			}
+			if err := uploadFileToSignedURL(ctx, st.Service.HTTPClient(), begin.UploadURL, begin.RequiredHeaders, filePath, contentType); err != nil {
+				return err
+			}
+			resp, err := c.CompleteAvatarUpload(ctx, &clientv1.CompleteAvatarUploadRequest{UploadID: begin.UploadID})
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, resp)
+		},
+	}
+}
+
+func newProfileBackgroundCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "background",
+		Usage: "Profile background image commands",
+		Commands: []*cli.Command{
+			newSDKCommand("begin", "Begin profile background upload", []cli.Flag{
+				&cli.StringFlag{Name: "content-type", Usage: "Content type"},
+				&cli.IntFlag{Name: "content-length", Usage: "Content length"},
+			}, true, func(cmd *cli.Command, req *clientv1.BeginProfileBackgroundUploadRequest) error {
+				setStringFlag(cmd, "content-type", &req.ContentType)
+				setInt64Flag(cmd, "content-length", &req.ContentLength)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BeginProfileBackgroundUploadRequest) (any, error) {
+				return c.BeginProfileBackgroundUpload(ctx, req)
+			}),
+			newSDKCommand("complete", "Complete profile background upload", []cli.Flag{&cli.StringFlag{Name: "upload-id", Usage: "Upload ID"}}, true, func(cmd *cli.Command, req *clientv1.CompleteProfileBackgroundUploadRequest) error {
+				setStringFlag(cmd, "upload-id", &req.UploadID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.CompleteProfileBackgroundUploadRequest) (any, error) {
+				return c.CompleteProfileBackgroundUpload(ctx, req)
+			}),
+			newSDKNoRequestCommand("clear", "Clear profile background", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
+				return c.ClearProfileBackground(ctx)
+			}),
+			newProfileBackgroundUploadCommand(),
+		},
+	}
+}
+
+func newProfileBackgroundUploadCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "upload",
+		Usage: "Upload and apply a profile background file",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "file", Usage: "File to upload", Required: true},
+			&cli.StringFlag{Name: "content-type", Usage: "Content type", Value: "application/octet-stream"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			st, err := getState(ctx)
+			if err != nil {
+				return err
+			}
+			c, err := st.Service.AuthenticatedClient()
+			if err != nil {
+				return err
+			}
+			filePath := cmd.String("file")
+			info, err := os.Stat(filePath)
+			if err != nil {
+				return err
+			}
+			contentLength := info.Size()
+			contentType := cmd.String("content-type")
+			begin, err := c.BeginProfileBackgroundUpload(ctx, &clientv1.BeginProfileBackgroundUploadRequest{ContentType: contentType, ContentLength: &contentLength})
+			if err != nil {
+				return err
+			}
+			if err := uploadFileToSignedURL(ctx, st.Service.HTTPClient(), begin.UploadURL, begin.RequiredHeaders, filePath, contentType); err != nil {
+				return err
+			}
+			resp, err := c.CompleteProfileBackgroundUpload(ctx, &clientv1.CompleteProfileBackgroundUploadRequest{UploadID: begin.UploadID})
+			if err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, resp)
+		},
+	}
+}
+
+func newProfilePinsCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "pins",
+		Usage: "Pinned profile resources",
+		Commands: []*cli.Command{
+			newSDKCommand("get", "Get pinned resources", []cli.Flag{&cli.StringFlag{Name: "user-id", Usage: "User ID"}}, true, func(cmd *cli.Command, req *clientv1.GetPinnedResourcesRequest) error {
+				setStringFlag(cmd, "user-id", &req.UserID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetPinnedResourcesRequest) (any, error) {
+				return c.GetPinnedResources(ctx, req)
+			}),
+			newSDKCommand("pin-collection", "Pin a collection", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}}, true, func(cmd *cli.Command, req *clientv1.PinCollectionRequest) error {
+				setStringFlag(cmd, "collection-id", &req.CollectionID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.PinCollectionRequest) (any, error) {
+				return c.PinCollection(ctx, req)
+			}),
+			newSDKCommand("unpin-collection", "Unpin a collection", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}}, true, func(cmd *cli.Command, req *clientv1.UnpinCollectionRequest) error {
+				setStringFlag(cmd, "collection-id", &req.CollectionID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnpinCollectionRequest) (any, error) {
+				return c.UnpinCollection(ctx, req)
+			}),
+			newSDKCommand("pin-deck", "Pin a deck", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}}, true, func(cmd *cli.Command, req *clientv1.PinDeckRequest) error {
+				setStringFlag(cmd, "deck-id", &req.DeckID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.PinDeckRequest) (any, error) {
+				return c.PinDeck(ctx, req)
+			}),
+			newSDKCommand("unpin-deck", "Unpin a deck", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}}, true, func(cmd *cli.Command, req *clientv1.UnpinDeckRequest) error {
+				setStringFlag(cmd, "deck-id", &req.DeckID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnpinDeckRequest) (any, error) {
+				return c.UnpinDeck(ctx, req)
+			}),
+		},
+	}
+}
+
+func newProfilePrivacyCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "privacy",
+		Usage: "Privacy consent",
+		Commands: []*cli.Command{
+			newSDKNoRequestCommand("get", "Get privacy consent", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
+				return c.GetPrivacyConsent(ctx)
+			}),
+			newSDKCommand("update", "Update privacy consent", []cli.Flag{
+				&cli.BoolFlag{Name: "analytics-allowed", Usage: "Analytics allowed"},
+				&cli.IntFlag{Name: "consent-version", Usage: "Consent version"},
+				&cli.StringFlag{Name: "source", Usage: "Source"},
+				&cli.StringFlag{Name: "platform", Usage: "Platform"},
+				&cli.StringFlag{Name: "app-version", Usage: "App version"},
+				&cli.StringFlag{Name: "device-id-hash", Usage: "Device ID hash"},
+				&cli.StringFlag{Name: "client-action-at", Usage: "Client action time (RFC3339)"},
+			}, true, func(cmd *cli.Command, req *clientv1.UpdatePrivacyConsentRequest) error {
+				if cmd.IsSet("analytics-allowed") {
+					req.AnalyticsAllowed = cmd.Bool("analytics-allowed")
+				}
+				if cmd.IsSet("consent-version") {
+					req.ConsentVersion = int32(cmd.Int("consent-version"))
+				}
+				setStringFlag(cmd, "source", &req.Source)
+				setStringFlag(cmd, "platform", &req.Platform)
+				setStringFlag(cmd, "app-version", &req.AppVersion)
+				setStringFlag(cmd, "device-id-hash", &req.DeviceIDHash)
+				return setTimeFlag(cmd, "client-action-at", &req.ClientActionAt)
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UpdatePrivacyConsentRequest) (any, error) {
+				return c.UpdatePrivacyConsent(ctx, req)
+			}),
 		},
 	}
 }
