@@ -283,6 +283,7 @@ func New(opts Options) Model {
 	input.Prompt = "Search*: "
 	input.CharLimit = 120
 	input.SetWidth(64)
+	_ = input.Focus()
 	results := list.New(nil, cardDelegate{}, 40, 12)
 	results.Title = "Cards"
 	results.SetShowTitle(false)
@@ -634,10 +635,12 @@ func (m *Model) resize() {
 	if m.width <= 0 || m.height <= 0 {
 		return
 	}
-	headerH := 5
-	footerH := 2
-	statusH := 1
-	bodyH := max(4, m.height-headerH-footerH-statusH)
+	headerH := 3
+	if m.err != "" {
+		headerH++
+	}
+	footerH := 1
+	bodyH := max(4, m.height-headerH-footerH)
 	verticalChrome := panelStyle.GetVerticalFrameSize()
 	horizontalChrome := panelStyle.GetHorizontalFrameSize()
 	maxArtOuterH := 24
@@ -691,20 +694,11 @@ func (m *Model) toggleFocus() tea.Cmd {
 }
 
 func (m Model) render() string {
-	title := titleStyle.Render("Pitchstack Cards")
-	searchLabel := "Search"
-	if m.focus == focusSearch {
-		searchLabel = "Search active"
-	}
-	search := sectionLabelStyle.Render(searchLabel) + "\n" + inputStyle.Width(max(20, m.width)).Render(m.input.View())
-	status := m.status
-	if m.loadingDB || m.searching || m.loadingCard || m.loadingArt {
-		status = m.spinner.View() + " " + status
-	}
+	title := titleStyle.Render("Pitchstack")
+	search := sectionLabelStyle.Render("Search") + "\n" + inputStyle.Width(max(20, m.width)).Render(m.input.View())
+	header := lipgloss.JoinVertical(lipgloss.Left, title, search)
 	if m.err != "" {
-		status = errorStyle.Render(m.err)
-	} else {
-		status = mutedStyle.Render(status)
+		header = lipgloss.JoinVertical(lipgloss.Left, header, errorStyle.Render(m.err))
 	}
 
 	body := ""
@@ -712,7 +706,6 @@ func (m Model) render() string {
 	if m.focus == focusResults {
 		resultPanel = activePanelStyle
 	}
-	searchFooter := mutedStyle.Render("Tab switches focus. Use / from results to search. Press ? for syntax.")
 	resultContent := sectionLabelStyle.Render("Cards") + "\n" + m.results.View()
 	resultOuterH := m.results.Height() + panelStyle.GetVerticalFrameSize() + 1
 	if m.width < 86 {
@@ -739,7 +732,7 @@ func (m Model) render() string {
 	if m.help.ShowAll {
 		footer = m.help.FullHelpView(keys.FullHelp())
 	}
-	content := lipgloss.JoinVertical(lipgloss.Left, title, search, searchFooter, status, body, mutedStyle.Render(footer))
+	content := lipgloss.JoinVertical(lipgloss.Left, header, body, mutedStyle.Render(footer))
 	if m.showSyntax {
 		return overlayModal(m.width, m.height, content, syntaxModal(m.width))
 	}

@@ -61,8 +61,7 @@ func renderHalfBlockImage(img image.Image, width, height int) string {
 		return ""
 	}
 	dst := image.NewRGBA(image.Rect(0, 0, width, height*2))
-	target := fitRect(dst.Bounds(), img.Bounds())
-	draw.CatmullRom.Scale(dst, target, img, img.Bounds(), draw.Over, nil)
+	draw.CatmullRom.Scale(dst, fitRect(dst.Bounds(), img.Bounds()), img, img.Bounds(), draw.Over, nil)
 	var b strings.Builder
 	for y := 0; y < height; y++ {
 		if y > 0 {
@@ -71,7 +70,16 @@ func renderHalfBlockImage(img image.Image, width, height int) string {
 		for x := 0; x < width; x++ {
 			fg := rgba8(dst.At(x, y*2))
 			bg := rgba8(dst.At(x, min(y*2+1, height*2-1)))
-			fmt.Fprintf(&b, "\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀", fg.R, fg.G, fg.B, bg.R, bg.G, bg.B)
+			switch {
+			case fg.A == 0 && bg.A == 0:
+				b.WriteString("\x1b[0m ")
+			case fg.A == 0:
+				fmt.Fprintf(&b, "\x1b[0m\x1b[38;2;%d;%d;%dm▄", bg.R, bg.G, bg.B)
+			case bg.A == 0:
+				fmt.Fprintf(&b, "\x1b[0m\x1b[38;2;%d;%d;%dm▀", fg.R, fg.G, fg.B)
+			default:
+				fmt.Fprintf(&b, "\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm▀", fg.R, fg.G, fg.B, bg.R, bg.G, bg.B)
+			}
 		}
 		b.WriteString("\x1b[0m")
 	}
@@ -90,12 +98,8 @@ func fitRect(dst, src image.Rectangle) image.Rectangle {
 		targetH = dstH
 		targetW = int(float64(targetH) * float64(srcW) / float64(srcH))
 	}
-	if targetW < 1 {
-		targetW = 1
-	}
-	if targetH < 1 {
-		targetH = 1
-	}
+	targetW = max(1, targetW)
+	targetH = max(1, targetH)
 	x0 := dst.Min.X + (dstW-targetW)/2
 	y0 := dst.Min.Y + (dstH-targetH)/2
 	return image.Rect(x0, y0, x0+targetW, y0+targetH)

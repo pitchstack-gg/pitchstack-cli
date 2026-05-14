@@ -160,6 +160,29 @@ func TestModelRenderCropsPanelsToTerminalHeight(t *testing.T) {
 	}
 }
 
+func TestModelRenderUsesQuietHeader(t *testing.T) {
+	t.Parallel()
+	model := New(Options{})
+	updated, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	next := updated.(Model)
+	next.status = "Rendering printing art..."
+
+	output := stripANSILite(next.render())
+	for _, unwanted := range []string{
+		"Pitchstack Cards",
+		"Search active",
+		"Tab switches focus",
+		"Rendering printing art",
+	} {
+		if strings.Contains(output, unwanted) {
+			t.Fatalf("rendered output contains %q:\n%s", unwanted, output)
+		}
+	}
+	if !strings.Contains(output, "Pitchstack") || !strings.Contains(output, "Search") {
+		t.Fatalf("rendered output missing quiet title/search header:\n%s", output)
+	}
+}
+
 func TestRenderPriceHistoryChartShowsAxisLabels(t *testing.T) {
 	t.Parallel()
 	jan1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
