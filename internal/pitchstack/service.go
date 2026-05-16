@@ -74,6 +74,25 @@ func (s *Service) HTTPClient() *http.Client {
 	return &http.Client{Timeout: s.timeout}
 }
 
+func (s *Service) Credential(ctx context.Context) (*clientv1.Credential, error) {
+	return s.credential(ctx)
+}
+
+func (s *Service) BearerToken(ctx context.Context) (string, error) {
+	cred, err := s.credential(ctx)
+	if err != nil {
+		return "", err
+	}
+	if cred == nil {
+		return "", nil
+	}
+	value := strings.TrimSpace(cred.Value)
+	if strings.EqualFold(strings.TrimSpace(cred.Header), "Authorization") && strings.HasPrefix(strings.ToLower(value), "bearer ") {
+		return strings.TrimSpace(value[len("bearer "):]), nil
+	}
+	return value, nil
+}
+
 func (s *Service) Login(ctx context.Context, in LoginInput) (*session.Session, error) {
 	if s.store == nil {
 		return nil, errors.New("session store is not configured")

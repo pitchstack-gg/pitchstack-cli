@@ -41,6 +41,7 @@ type Features struct {
 	HasProjectionImageCropSmall  bool
 	HasProjectionImageCropMedium bool
 	HasProjectionImageCropXlarge bool
+	HasProjectionImageCropColor  bool
 	HasProjectionClassesJSON     bool
 	HasProjectionTalentsJSON     bool
 	HasProjectionTypesJSON       bool
@@ -94,6 +95,7 @@ type CardDetail struct {
 	Arcane       string
 	ImageURL     string
 	ArtURL       string
+	PrimaryColor string
 	PrintingID   string
 	Printing     string
 	SetCode      string
@@ -461,6 +463,7 @@ func (r *Repository) detectFeatures(ctx context.Context) (Features, error) {
 		HasProjectionImageCropSmall:  projectionColumns["image_crop_small"],
 		HasProjectionImageCropMedium: projectionColumns["image_crop_medium"],
 		HasProjectionImageCropXlarge: projectionColumns["image_crop_xlarge"],
+		HasProjectionImageCropColor:  projectionColumns["image_crop_primary_color"],
 		HasProjectionClassesJSON:     projectionColumns["classes_json"],
 		HasProjectionTalentsJSON:     projectionColumns["talents_json"],
 		HasProjectionTypesJSON:       projectionColumns["types_json"],
@@ -635,6 +638,7 @@ SELECT
   %s AS legality,
   %s AS image_url,
   COALESCE(%s, '') AS art_url,
+  COALESCE(%s, '') AS primary_color,
   COALESCE(%s, '[]') AS classes_json,
   COALESCE(%s, '[]') AS talents_json,
   COALESCE(%s, '[]') AS types_json,
@@ -658,6 +662,7 @@ LIMIT 1`,
 		cardLegalityExpr(r.features.HasCardLegalityJSON),
 		r.defaultImageExpr("cards.id", "csp"),
 		r.cropImageExpr("cards.id", "csp"),
+		projectionExpr(r.features.HasProjectionImageCropColor, "csp.image_crop_primary_color"),
 		projectionExpr(r.features.HasProjectionClassesJSON, "csp.classes_json"),
 		projectionExpr(r.features.HasProjectionTalentsJSON, "csp.talents_json"),
 		projectionExpr(r.features.HasProjectionTypesJSON, "csp.types_json"),
@@ -669,7 +674,7 @@ LIMIT 1`,
 	var classesJSON, talentsJSON, typesJSON, subtypesJSON, keywordsJSON string
 	if err := r.db.QueryRowContext(ctx, sqlText, cardID).Scan(
 		&d.ID, &d.Name, &d.TypeLine, &d.Text, &d.Cost, &d.Pitch, &d.Power, &d.Defense, &d.Health,
-		&d.Intelligence, &d.Arcane, &d.Legality, &d.ImageURL, &d.ArtURL,
+		&d.Intelligence, &d.Arcane, &d.Legality, &d.ImageURL, &d.ArtURL, &d.PrimaryColor,
 		&classesJSON, &talentsJSON, &typesJSON, &subtypesJSON, &keywordsJSON,
 	); err != nil {
 		if err == sql.ErrNoRows {

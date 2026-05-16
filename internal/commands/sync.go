@@ -21,6 +21,7 @@ func newSyncCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newSyncChangesCommand(),
 			newSyncApplyCommand(),
+			newSyncLocalCommand(),
 			newSyncPowerSyncConfigCommand(),
 			newSyncUploadCrudCommand(),
 			newSyncSubscriptionsCommand(),

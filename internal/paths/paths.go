@@ -66,3 +66,15 @@ func CardsDBMetaPath(profileName string) string {
 func CardsImageCacheDir(profileName string) string {
 	return filepath.Join(CardsCacheDir(profileName), "images")
 }
+
+func SyncCacheDir(profileName string) string {
+	return filepath.Join(appCacheDir(), SafeProfileName(profileName), "sync")
+}
+
+func SyncDBPath(profileName string) string {
+	return filepath.Join(SyncCacheDir(profileName), "powersync.sqlite")
+}
+
+func SyncMetaPath(profileName string) string {
+	return filepath.Join(SyncCacheDir(profileName), "meta.json")
+}

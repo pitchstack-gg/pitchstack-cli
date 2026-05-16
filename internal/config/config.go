@@ -20,6 +20,8 @@ type Profile struct {
 	TimeoutSeconds        int    `json:"timeoutSeconds,omitempty"`
 	CardsDBURL            string `json:"cardsDbUrl,omitempty"`
 	CardsDBLastUpdatedURL string `json:"cardsDbLastUpdatedUrl,omitempty"`
+	PowerSyncURL          string `json:"powerSyncUrl,omitempty"`
+	SyncEnabled           *bool  `json:"syncEnabled,omitempty"`
 }
 
 type Deps struct {

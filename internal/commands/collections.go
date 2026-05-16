@@ -15,6 +15,7 @@ func newCollectionsCommand() *cli.Command {
 		Usage: "Manage collections",
 		Commands: []*cli.Command{
 			newCollectionsListCommand(),
+			newCollectionsCountsCommand(),
 			newCollectionsGetCommand(),
 			newCollectionsHistoryCommand(),
 			newCollectionsBatchGetCommand(),
