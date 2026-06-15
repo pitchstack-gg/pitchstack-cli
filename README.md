@@ -46,6 +46,16 @@ go run ./cmd/pitchstack login
 
 ```sh
 go run ./cmd/pitchstack whoami
+go run ./cmd/pitchstack auth me
+```
+
+## Auth
+
+```sh
+go run ./cmd/pitchstack auth patreon initiate
+go run ./cmd/pitchstack auth patreon complete --code <code> --state <state>
+go run ./cmd/pitchstack auth patreon unlink
+go run ./cmd/pitchstack auth internal access-profile --user-id <user-id>
 ```
 
 ## Collections
@@ -55,6 +65,8 @@ go run ./cmd/pitchstack collections list
 go run ./cmd/pitchstack collections create --name "My Binder" --type binder --visibility private
 go run ./cmd/pitchstack collections get --id <collection-id>
 go run ./cmd/pitchstack collections update --id <collection-id> --name "New Name"
+go run ./cmd/pitchstack collections art --id <collection-id> --selected-art-printing-id <printing-id>
+go run ./cmd/pitchstack collections trade-items --user-id <user-id>
 go run ./cmd/pitchstack collections delete --id <collection-id>
 ```
 
@@ -64,7 +76,7 @@ go run ./cmd/pitchstack collections delete --id <collection-id>
 go run ./cmd/pitchstack collections items list --collection-id <collection-id>
 go run ./cmd/pitchstack collections items add --collection-id <collection-id> --product-id <product-id> --quantity 1 --condition near_mint
 go run ./cmd/pitchstack collections items get --id <item-id>
-go run ./cmd/pitchstack collections items update --id <item-id> --quantity 2
+go run ./cmd/pitchstack collections items update --id <item-id> --quantity 2 --trade-quantity 1 --notes "For trade"
 go run ./cmd/pitchstack collections items delete --id <item-id>
 ```
 
@@ -103,6 +115,13 @@ go run ./cmd/pitchstack profile avatar set --url https://example.com/avatar.png
 go run ./cmd/pitchstack profile socials get --user-id <user-id>
 go run ./cmd/pitchstack profile socials upsert --platform bluesky --handle you --url https://bsky.app/profile/you
 go run ./cmd/pitchstack profile socials remove --platform bluesky
+go run ./cmd/pitchstack profile privacy update --analytics-allowed --consent-version 2 --source cli --platform web --ad-consent-provider <provider>
+```
+
+## Notifications
+
+```sh
+go run ./cmd/pitchstack notifications inbox mark-all-read
 ```
 
 ## Files

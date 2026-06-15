@@ -2,6 +2,8 @@ package commands
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -36,25 +38,11 @@ func newProfileGetCommand() *cli.Command {
 			&cli.StringFlag{Name: "user-id", Usage: "User ID (optional)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-
 			userID := strings.TrimSpace(cmd.String("user-id"))
 			if userID == "" {
-				profile, err := st.Service.GetMyProfile(ctx)
-				if err != nil {
-					return err
-				}
-				return writeJSON(cmd.Writer, &clientv1.GetProfileResponse{Profile: profile})
+				return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/me/profile", nil)
 			}
-
-			resp, err := st.Service.GetProfile(ctx, &clientv1.GetProfileRequest{UserID: userID})
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/users/"+url.PathEscape(userID)+"/profile", nil)
 		},
 	}
 }
@@ -438,32 +426,47 @@ func newProfilePrivacyCommand() *cli.Command {
 		Name:  "privacy",
 		Usage: "Privacy consent",
 		Commands: []*cli.Command{
-			newSDKNoRequestCommand("get", "Get privacy consent", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
-				return c.GetPrivacyConsent(ctx)
-			}),
-			newSDKCommand("update", "Update privacy consent", []cli.Flag{
-				&cli.BoolFlag{Name: "analytics-allowed", Usage: "Analytics allowed"},
-				&cli.IntFlag{Name: "consent-version", Usage: "Consent version"},
-				&cli.StringFlag{Name: "source", Usage: "Source"},
-				&cli.StringFlag{Name: "platform", Usage: "Platform"},
-				&cli.StringFlag{Name: "app-version", Usage: "App version"},
-				&cli.StringFlag{Name: "device-id-hash", Usage: "Device ID hash"},
-				&cli.StringFlag{Name: "client-action-at", Usage: "Client action time (RFC3339)"},
-			}, true, func(cmd *cli.Command, req *clientv1.UpdatePrivacyConsentRequest) error {
-				if cmd.IsSet("analytics-allowed") {
-					req.AnalyticsAllowed = cmd.Bool("analytics-allowed")
-				}
-				if cmd.IsSet("consent-version") {
-					req.ConsentVersion = int32(cmd.Int("consent-version"))
-				}
-				setStringFlag(cmd, "source", &req.Source)
-				setStringFlag(cmd, "platform", &req.Platform)
-				setStringFlag(cmd, "app-version", &req.AppVersion)
-				setStringFlag(cmd, "device-id-hash", &req.DeviceIDHash)
-				return setTimeFlag(cmd, "client-action-at", &req.ClientActionAt)
-			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UpdatePrivacyConsentRequest) (any, error) {
-				return c.UpdatePrivacyConsent(ctx, req)
-			}),
+			{
+				Name:  "get",
+				Usage: "Get privacy consent",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/me/privacy/consent", nil)
+				},
+			},
+			{
+				Name:  "update",
+				Usage: "Update privacy consent",
+				Flags: []cli.Flag{
+					requestFileFlag(),
+					&cli.BoolFlag{Name: "analytics-allowed", Usage: "Analytics allowed"},
+					&cli.IntFlag{Name: "consent-version", Usage: "Consent version"},
+					&cli.StringFlag{Name: "source", Usage: "Source"},
+					&cli.StringFlag{Name: "platform", Usage: "Platform"},
+					&cli.StringFlag{Name: "app-version", Usage: "App version"},
+					&cli.StringFlag{Name: "device-id-hash", Usage: "Device ID hash"},
+					&cli.StringFlag{Name: "client-action-at", Usage: "Client action time (RFC3339)"},
+					&cli.StringFlag{Name: "ad-consent-provider", Usage: "Ad consent provider"},
+					&cli.BoolFlag{Name: "ad-consent-region-applies", Usage: "Whether ad consent region applies"},
+					&cli.StringFlag{Name: "ad-consent-last-seen-at", Usage: "Ad consent last seen time (RFC3339)"},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					payload, err := readObjectPayload(cmd)
+					if err != nil {
+						return err
+					}
+					setPayloadBoolFlag(cmd, "analytics-allowed", "analyticsAllowed", payload)
+					setPayloadIntFlag(cmd, "consent-version", "consentVersion", payload)
+					setPayloadStringFlag(cmd, "source", "source", payload)
+					setPayloadStringFlag(cmd, "platform", "platform", payload)
+					setPayloadStringFlag(cmd, "app-version", "appVersion", payload)
+					setPayloadStringFlag(cmd, "device-id-hash", "deviceIdHash", payload)
+					setPayloadStringFlag(cmd, "client-action-at", "clientActionAt", payload)
+					setPayloadStringFlag(cmd, "ad-consent-provider", "adConsentProvider", payload)
+					setPayloadBoolFlag(cmd, "ad-consent-region-applies", "adConsentRegionApplies", payload)
+					setPayloadStringFlag(cmd, "ad-consent-last-seen-at", "adConsentLastSeenAt", payload)
+					return writeAuthenticatedJSON(ctx, cmd, http.MethodPut, "/v1/me/privacy/consent", payload)
+				},
+			},
 		},
 	}
 }

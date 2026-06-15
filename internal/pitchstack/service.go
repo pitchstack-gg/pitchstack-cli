@@ -74,6 +74,21 @@ func (s *Service) HTTPClient() *http.Client {
 	return &http.Client{Timeout: s.timeout}
 }
 
+func (s *Service) DoJSON(ctx context.Context, method string, path string, payload any, out any, authenticated bool) error {
+	headers := make(http.Header)
+	if authenticated {
+		cred, err := s.credential(ctx)
+		if err != nil {
+			return err
+		}
+		if cred == nil || strings.TrimSpace(cred.Value) == "" {
+			return errors.New("not logged in")
+		}
+		headers.Set(cred.Header, cred.Value)
+	}
+	return s.doJSON(ctx, method, path, payload, out, headers)
+}
+
 func (s *Service) Credential(ctx context.Context) (*clientv1.Credential, error) {
 	return s.credential(ctx)
 }
@@ -1077,53 +1092,14 @@ func (t *authRetryRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 }
 
 func (s *Service) getJSON(ctx context.Context, path string, out any, headers http.Header) error {
-	base, err := url.Parse(s.baseURL)
-	if err != nil {
-		return fmt.Errorf("parse base url: %w", err)
-	}
-	if !strings.HasPrefix(path, "/") {
-		path = "/" + path
-	}
-	rel, err := url.Parse(path)
-	if err != nil {
-		return fmt.Errorf("parse path: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base.ResolveReference(rel).String(), nil)
-	if err != nil {
-		return fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Accept", "application/json")
-	for k, vals := range headers {
-		for _, v := range vals {
-			req.Header.Add(k, v)
-		}
-	}
-
-	httpClient := &http.Client{Timeout: s.timeout}
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("api error (%d): %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
-	}
-	if out == nil || len(respBody) == 0 {
-		return nil
-	}
-	if err := json.Unmarshal(respBody, out); err != nil {
-		return fmt.Errorf("decode response: %w", err)
-	}
-	return nil
+	return s.doJSON(ctx, http.MethodGet, path, nil, out, headers)
 }
 
 func (s *Service) postJSON(ctx context.Context, path string, payload any, out any, headers http.Header) error {
+	return s.doJSON(ctx, http.MethodPost, path, payload, out, headers)
+}
+
+func (s *Service) doJSON(ctx context.Context, method string, path string, payload any, out any, headers http.Header) error {
 	base, err := url.Parse(s.baseURL)
 	if err != nil {
 		return fmt.Errorf("parse base url: %w", err)
@@ -1136,16 +1112,26 @@ func (s *Service) postJSON(ctx context.Context, path string, payload any, out an
 		return fmt.Errorf("parse path: %w", err)
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return fmt.Errorf("encode request: %w", err)
+	var body io.Reader
+	var bodyBytes []byte
+	if payload != nil {
+		bodyBytes, err = json.Marshal(payload)
+		if err != nil {
+			return fmt.Errorf("encode request: %w", err)
+		}
+		body = bytes.NewReader(bodyBytes)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base.ResolveReference(rel).String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, method, base.ResolveReference(rel).String(), body)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+		}
+	}
 	req.Header.Set("Accept", "application/json")
 	for k, vals := range headers {
 		for _, v := range vals {
@@ -1153,7 +1139,13 @@ func (s *Service) postJSON(ctx context.Context, path string, payload any, out an
 		}
 	}
 
-	httpClient := &http.Client{Timeout: s.timeout}
+	httpClient := &http.Client{
+		Timeout: s.timeout,
+		Transport: &authRetryRoundTripper{
+			base: http.DefaultTransport,
+			svc:  s,
+		},
+	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err

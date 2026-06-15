@@ -2,6 +2,7 @@ package commands
 
 import (
 	"errors"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -60,4 +61,41 @@ func parseInt32(s string) (*int32, error) {
 	}
 	vs := int32(v)
 	return &vs, nil
+}
+
+func parseStringMap(values []string) (map[string]string, error) {
+	out := map[string]string{}
+	for _, value := range values {
+		for _, part := range strings.Split(value, ",") {
+			part = strings.TrimSpace(part)
+			if part == "" {
+				continue
+			}
+			key, val, ok := strings.Cut(part, "=")
+			if !ok {
+				return nil, errors.New("expected key=value")
+			}
+			key = strings.TrimSpace(key)
+			val = strings.TrimSpace(val)
+			if key == "" {
+				return nil, errors.New("metadata key must not be empty")
+			}
+			out[key] = val
+		}
+	}
+	return out, nil
+}
+
+func setQueryString(query url.Values, key string, value string) {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		query.Set(key, value)
+	}
+}
+
+func pathWithQuery(path string, query url.Values) string {
+	if len(query) == 0 {
+		return path
+	}
+	return path + "?" + query.Encode()
 }

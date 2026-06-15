@@ -15,10 +15,13 @@ func newAuthCommand() *cli.Command {
 		Usage: "Authentication helpers",
 		Commands: []*cli.Command{
 			newAuthStatusCommand(),
+			newAuthMeCommand(),
 			newAuthAPIKeysCommand(),
 			newAuthPasswordCommand(),
 			newAuthMethodsCommand(),
 			newAuthOAuthCommand(),
+			newAuthPatreonCommand(),
+			newAuthInternalCommand(),
 			newAuthTokensCommand(),
 			newAuthUsersCommand(),
 			newAuthPasskeysCommand(),

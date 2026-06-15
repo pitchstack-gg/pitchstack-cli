@@ -2,10 +2,24 @@ package commands
 
 import (
 	"context"
+	"encoding/base64"
+	"net/http"
+	"os"
+	"strings"
 
 	clientv1 "github.com/pitchstack-gg/pitchstack-go/client/v1"
 	"github.com/urfave/cli/v3"
 )
+
+func newAuthMeCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "me",
+		Usage: "Show raw current user and access profile",
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/me", nil)
+		},
+	}
+}
 
 func newAuthAPIKeysCommand() *cli.Command {
 	return &cli.Command{
@@ -200,6 +214,310 @@ func newAuthOAuthCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnlinkOAuthProviderRequest) (any, error) {
 				return c.UnlinkOAuthProvider(ctx, req)
 			}),
+		},
+	}
+}
+
+func newAuthPatreonCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "patreon",
+		Usage: "Patreon account linking",
+		Commands: []*cli.Command{
+			{
+				Name:  "initiate",
+				Usage: "Initiate Patreon linking",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/auth/patreon/link:initiate", map[string]any{})
+				},
+			},
+			{
+				Name:  "complete",
+				Usage: "Complete Patreon linking",
+				Flags: []cli.Flag{
+					requestFileFlag(),
+					&cli.StringFlag{Name: "code", Usage: "OAuth code"},
+					&cli.StringFlag{Name: "state", Usage: "OAuth state"},
+				},
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					payload, err := readObjectPayload(cmd)
+					if err != nil {
+						return err
+					}
+					setPayloadStringFlag(cmd, "code", "code", payload)
+					setPayloadStringFlag(cmd, "state", "state", payload)
+					return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/auth/patreon/link:complete", payload)
+				},
+			},
+			{
+				Name:  "unlink",
+				Usage: "Unlink Patreon",
+				Action: func(ctx context.Context, cmd *cli.Command) error {
+					if err := callAuthenticatedJSON(ctx, cmd, http.MethodDelete, "/v1/auth/patreon/link", nil, nil); err != nil {
+						return err
+					}
+					return writeJSON(cmd.Writer, map[string]any{"unlinked": true})
+				},
+			},
+		},
+	}
+}
+
+func newAuthInternalCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "internal",
+		Usage: "Internal/admin auth helpers",
+		Commands: []*cli.Command{
+			newAuthInternalAccessProfileCommand(),
+			newAuthInternalAddRoleCommand(),
+			newAuthInternalRemoveRoleCommand(),
+			newAuthInternalGrantEntitlementCommand(),
+			newAuthInternalRevokeEntitlementCommand(),
+			newAuthInternalSetLimitCommand(),
+			newAuthInternalClearLimitCommand(),
+			newAuthInternalProcessPatreonWebhookCommand(),
+			newAuthInternalReconcilePatreonCommand(),
+		},
+	}
+}
+
+func newAuthInternalAccessProfileCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "access-profile",
+		Usage: "Get a user's access profile",
+		Flags: []cli.Flag{
+			requestFileFlag(),
+			&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setPayloadStringFlag(cmd, "user-id", "userId", payload)
+			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/GetAccessProfile", payload)
+		},
+	}
+}
+
+func newAuthInternalAddRoleCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "add-role",
+		Usage: "Add a user role",
+		Flags: authInternalRoleFlags(),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setAuthInternalRolePayload(cmd, payload)
+			if err := callAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/AddUserRole", payload, nil); err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, map[string]any{"added": true})
+		},
+	}
+}
+
+func newAuthInternalRemoveRoleCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "remove-role",
+		Usage: "Remove a user role",
+		Flags: authInternalRoleFlags(),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setAuthInternalRolePayload(cmd, payload)
+			if err := callAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/RemoveUserRole", payload, nil); err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, map[string]any{"removed": true})
+		},
+	}
+}
+
+func authInternalRoleFlags() []cli.Flag {
+	return []cli.Flag{
+		requestFileFlag(),
+		&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+		&cli.StringFlag{Name: "role", Usage: "Role"},
+		&cli.StringFlag{Name: "assigned-by", Usage: "Assigner user ID"},
+	}
+}
+
+func setAuthInternalRolePayload(cmd *cli.Command, payload map[string]any) {
+	setPayloadStringFlag(cmd, "user-id", "userId", payload)
+	setPayloadStringFlag(cmd, "role", "role", payload)
+	setPayloadStringFlag(cmd, "assigned-by", "assignedBy", payload)
+}
+
+func newAuthInternalGrantEntitlementCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "grant-entitlement",
+		Usage: "Grant a user entitlement",
+		Flags: []cli.Flag{
+			requestFileFlag(),
+			&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+			&cli.StringFlag{Name: "entitlement", Usage: "Entitlement key"},
+			&cli.StringFlag{Name: "source", Usage: "Source"},
+			&cli.StringFlag{Name: "expires-at", Usage: "Expiration time (RFC3339)"},
+			&cli.StringFlag{Name: "assigned-by", Usage: "Assigner user ID"},
+			repeatedIDsFlag("metadata", "Metadata key=value (repeatable or comma-separated)"),
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setPayloadStringFlag(cmd, "user-id", "userId", payload)
+			setPayloadStringFlag(cmd, "entitlement", "entitlement", payload)
+			setPayloadStringFlag(cmd, "source", "source", payload)
+			setPayloadStringFlag(cmd, "expires-at", "expiresAt", payload)
+			setPayloadStringFlag(cmd, "assigned-by", "assignedBy", payload)
+			if cmd.IsSet("metadata") {
+				metadata, err := parseStringMap(cmd.StringSlice("metadata"))
+				if err != nil {
+					return cli.Exit("--metadata must be key=value", 2)
+				}
+				payload["metadata"] = metadata
+			}
+			if err := callAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/GrantEntitlement", payload, nil); err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, map[string]any{"granted": true})
+		},
+	}
+}
+
+func newAuthInternalRevokeEntitlementCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "revoke-entitlement",
+		Usage: "Revoke a user entitlement",
+		Flags: []cli.Flag{
+			requestFileFlag(),
+			&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+			&cli.StringFlag{Name: "entitlement", Usage: "Entitlement key"},
+			&cli.StringFlag{Name: "assigned-by", Usage: "Assigner user ID"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setPayloadStringFlag(cmd, "user-id", "userId", payload)
+			setPayloadStringFlag(cmd, "entitlement", "entitlement", payload)
+			setPayloadStringFlag(cmd, "assigned-by", "assignedBy", payload)
+			if err := callAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/RevokeEntitlement", payload, nil); err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, map[string]any{"revoked": true})
+		},
+	}
+}
+
+func newAuthInternalSetLimitCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "set-limit",
+		Usage: "Set a user limit override",
+		Flags: []cli.Flag{
+			requestFileFlag(),
+			&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+			&cli.StringFlag{Name: "limit-key", Usage: "Limit key"},
+			&cli.IntFlag{Name: "value", Usage: "Limit value"},
+			&cli.StringFlag{Name: "source", Usage: "Source"},
+			&cli.StringFlag{Name: "expires-at", Usage: "Expiration time (RFC3339)"},
+			&cli.StringFlag{Name: "assigned-by", Usage: "Assigner user ID"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setPayloadStringFlag(cmd, "user-id", "userId", payload)
+			setPayloadStringFlag(cmd, "limit-key", "limitKey", payload)
+			setPayloadIntFlag(cmd, "value", "value", payload)
+			setPayloadStringFlag(cmd, "source", "source", payload)
+			setPayloadStringFlag(cmd, "expires-at", "expiresAt", payload)
+			setPayloadStringFlag(cmd, "assigned-by", "assignedBy", payload)
+			if err := callAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/SetUserLimitOverride", payload, nil); err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, map[string]any{"set": true})
+		},
+	}
+}
+
+func newAuthInternalClearLimitCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "clear-limit",
+		Usage: "Clear a user limit override",
+		Flags: []cli.Flag{
+			requestFileFlag(),
+			&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+			&cli.StringFlag{Name: "limit-key", Usage: "Limit key"},
+			&cli.StringFlag{Name: "assigned-by", Usage: "Assigner user ID"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			setPayloadStringFlag(cmd, "user-id", "userId", payload)
+			setPayloadStringFlag(cmd, "limit-key", "limitKey", payload)
+			setPayloadStringFlag(cmd, "assigned-by", "assignedBy", payload)
+			if err := callAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/ClearUserLimitOverride", payload, nil); err != nil {
+				return err
+			}
+			return writeJSON(cmd.Writer, map[string]any{"cleared": true})
+		},
+	}
+}
+
+func newAuthInternalProcessPatreonWebhookCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "process-patreon-webhook",
+		Usage: "Process a Patreon webhook payload",
+		Flags: []cli.Flag{
+			requestFileFlag(),
+			&cli.StringFlag{Name: "raw-body", Usage: "Raw webhook body"},
+			&cli.StringFlag{Name: "raw-body-file", Usage: "File containing raw webhook body"},
+			&cli.StringFlag{Name: "signature", Usage: "Patreon signature"},
+			&cli.StringFlag{Name: "trigger", Usage: "Patreon trigger"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			if cmd.IsSet("raw-body") {
+				payload["rawBody"] = base64.StdEncoding.EncodeToString([]byte(cmd.String("raw-body")))
+			}
+			if cmd.IsSet("raw-body-file") {
+				data, err := os.ReadFile(strings.TrimSpace(cmd.String("raw-body-file")))
+				if err != nil {
+					return err
+				}
+				payload["rawBody"] = base64.StdEncoding.EncodeToString(data)
+			}
+			setPayloadStringFlag(cmd, "signature", "signature", payload)
+			setPayloadStringFlag(cmd, "trigger", "trigger", payload)
+			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/ProcessPatreonWebhook", payload)
+		},
+	}
+}
+
+func newAuthInternalReconcilePatreonCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "reconcile-patreon",
+		Usage: "Reconcile Patreon entitlements",
+		Flags: []cli.Flag{requestFileFlag()},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			payload, err := readObjectPayload(cmd)
+			if err != nil {
+				return err
+			}
+			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/auth.v1.AuthInternalService/ReconcilePatreonEntitlements", payload)
 		},
 	}
 }
