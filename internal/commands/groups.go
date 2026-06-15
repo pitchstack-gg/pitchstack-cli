@@ -47,9 +47,9 @@ func newGroupsCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UpdateGroupRequest) (any, error) {
 				return c.UpdateGroup(ctx, req)
 			}),
-			newSDKCommand("delete", "Delete a group", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Group ID"}}, true, func(cmd *cli.Command, req *clientv1.DeleteGroupRequest) error {
+			newSDKCommand("delete", "Delete a group", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Group ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.DeleteGroupRequest) error {
 				setStringFlag(cmd, "id", &req.GroupID)
-				return nil
+				return confirmAction(cmd, "Delete", "group", req.GroupID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeleteGroupRequest) (any, error) {
 				return c.DeleteGroup(ctx, req)
 			}),
@@ -112,10 +112,11 @@ func newGroupMembersCommand() *cli.Command {
 			newSDKCommand("remove", "Remove a group member", []cli.Flag{
 				&cli.StringFlag{Name: "group-id", Usage: "Group ID"},
 				&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+				yesFlag(),
 			}, true, func(cmd *cli.Command, req *clientv1.RemoveGroupMemberRequest) error {
 				setStringFlag(cmd, "group-id", &req.GroupID)
 				setStringFlag(cmd, "user-id", &req.UserID)
-				return nil
+				return confirmAction(cmd, "Remove", "group member", req.UserID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.RemoveGroupMemberRequest) (any, error) {
 				return c.RemoveGroupMember(ctx, req)
 			}),
@@ -164,10 +165,11 @@ func newGroupInvitesCommand() *cli.Command {
 			newSDKCommand("revoke", "Revoke a group invite", []cli.Flag{
 				&cli.StringFlag{Name: "group-id", Usage: "Group ID"},
 				&cli.StringFlag{Name: "invite-id", Usage: "Invite ID"},
+				yesFlag(),
 			}, true, func(cmd *cli.Command, req *clientv1.RevokeGroupInviteRequest) error {
 				setStringFlag(cmd, "group-id", &req.GroupID)
 				setStringFlag(cmd, "invite-id", &req.InviteID)
-				return nil
+				return confirmAction(cmd, "Revoke", "group invite", req.InviteID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.RevokeGroupInviteRequest) (any, error) {
 				return c.RevokeGroupInvite(ctx, req)
 			}),

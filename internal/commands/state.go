@@ -38,7 +38,12 @@ func loadState(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 	}
 	prof, ok := cfg.Profile(profileName)
 	if !ok {
-		return ctx, cli.Exit(fmt.Sprintf("unknown profile %q", profileName), 2)
+		if isConfigInitCommand(cmd) {
+			profileName = "default"
+			prof, _ = config.Default().Profile(profileName)
+		} else {
+			return ctx, cli.Exit(fmt.Sprintf("unknown profile %q", profileName), 2)
+		}
 	}
 
 	store := session.NewStore(paths.SessionPath(profileName))
@@ -65,6 +70,17 @@ func loadState(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 		Service:     svc,
 	}
 	return context.WithValue(ctx, stateKey{}, st), nil
+}
+
+func isConfigInitCommand(cmd *cli.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	if strings.TrimSpace(cmd.FullName()) == "pitchstack config init" {
+		return true
+	}
+	args := cmd.Args().Slice()
+	return len(args) >= 2 && args[0] == "config" && args[1] == "init"
 }
 
 func getState(ctx context.Context) (*state, error) {

@@ -78,9 +78,9 @@ func newPriceWatchesCommand() *cli.Command {
 			newSDKCommand("update", "Update a product price watch", priceWatchFlags(true), true, applyUpdatePriceWatchFlags, func(ctx context.Context, c *clientv1.Client, req *clientv1.UpdateProductPriceWatchRequest) (any, error) {
 				return c.UpdateProductPriceWatch(ctx, req)
 			}),
-			newSDKCommand("delete", "Delete a product price watch", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Watch ID"}}, true, func(cmd *cli.Command, req *clientv1.DeleteProductPriceWatchRequest) error {
+			newSDKCommand("delete", "Delete a product price watch", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Watch ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.DeleteProductPriceWatchRequest) error {
 				setStringFlag(cmd, "id", &req.WatchID)
-				return nil
+				return confirmAction(cmd, "Delete", "price watch", req.WatchID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeleteProductPriceWatchRequest) (any, error) {
 				return c.DeleteProductPriceWatch(ctx, req)
 			}),

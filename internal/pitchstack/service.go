@@ -74,21 +74,6 @@ func (s *Service) HTTPClient() *http.Client {
 	return &http.Client{Timeout: s.timeout}
 }
 
-func (s *Service) DoJSON(ctx context.Context, method string, path string, payload any, out any, authenticated bool) error {
-	headers := make(http.Header)
-	if authenticated {
-		cred, err := s.credential(ctx)
-		if err != nil {
-			return err
-		}
-		if cred == nil || strings.TrimSpace(cred.Value) == "" {
-			return errors.New("not logged in")
-		}
-		headers.Set(cred.Header, cred.Value)
-	}
-	return s.doJSON(ctx, method, path, payload, out, headers)
-}
-
 func (s *Service) Credential(ctx context.Context) (*clientv1.Credential, error) {
 	return s.credential(ctx)
 }

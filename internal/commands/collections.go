@@ -2,9 +2,6 @@ package commands
 
 import (
 	"context"
-	"fmt"
-	"net/http"
-	"net/url"
 	"strings"
 
 	clientv1 "github.com/pitchstack-gg/pitchstack-go/client/v1"
@@ -156,6 +153,7 @@ func newCollectionsPermissionsRevokeCommand() *cli.Command {
 			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
 			&cli.StringFlag{Name: "subject-id", Usage: "User ID to revoke access from", Required: true},
 			&cli.StringFlag{Name: "permission", Usage: "Permission (reader|writer)", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -170,6 +168,9 @@ func newCollectionsPermissionsRevokeCommand() *cli.Command {
 
 			collectionID := strings.TrimSpace(cmd.String("collection-id"))
 			subjectID := strings.TrimSpace(cmd.String("subject-id"))
+			if err := confirmAction(cmd, "Revoke", "collection access", collectionID); err != nil {
+				return err
+			}
 
 			if _, err := st.Service.RevokeCollectionAccess(ctx, &clientv1.RevokeCollectionAccessRequest{
 				CollectionID: collectionID,
@@ -190,115 +191,100 @@ func newCollectionsPermissionsRevokeCommand() *cli.Command {
 }
 
 func newCollectionsPermissionsStopShareCommand() *cli.Command {
-	return newSDKCommand("stop-share", "Remove all explicit collection shares", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}}, true, func(cmd *cli.Command, req *clientv1.StopCollectionShareRequest) error {
+	return newSDKCommand("stop-share", "Remove all explicit collection shares", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.StopCollectionShareRequest) error {
 		setStringFlag(cmd, "collection-id", &req.CollectionID)
-		return nil
+		return confirmAction(cmd, "Remove", "collection shares", req.CollectionID)
 	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StopCollectionShareRequest) (any, error) {
 		return c.StopCollectionShare(ctx, req)
 	})
 }
 
 func newCollectionsListCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "list",
-		Usage: "List collections",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "scope", Usage: "Scope (owned|shared|accessible)"},
-			&cli.StringFlag{Name: "user-id", Usage: "Filter by user ID"},
-			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
-			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			query := make(url.Values)
-			if scope := parseCollectionScope(cmd.String("scope")); scope != clientv1.CollectionListScopeUnspecified {
-				query.Set("scope", string(scope))
-			}
-			setQueryString(query, "userId", cmd.String("user-id"))
-			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
-				query.Set("pageSize", fmt.Sprintf("%d", cmd.Int("page-size")))
-			}
-			setQueryString(query, "nextToken", cmd.String("next-token"))
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, pathWithQuery("/v1/collections", query), nil)
-		},
-	}
+	return newSDKCommand("list", "List collections", []cli.Flag{
+		&cli.StringFlag{Name: "scope", Usage: "Scope (owned|shared|accessible)"},
+		&cli.StringFlag{Name: "user-id", Usage: "Filter by user ID"},
+		&cli.IntFlag{Name: "page-size", Usage: "Page size"},
+		&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
+	}, true, func(cmd *cli.Command, req *clientv1.ListCollectionsRequest) error {
+		if scope := parseCollectionScope(cmd.String("scope")); scope != clientv1.CollectionListScopeUnspecified {
+			req.Scope = scope
+		}
+		setStringFlag(cmd, "user-id", &req.UserID)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListCollectionsRequest) (any, error) {
+		return c.ListCollections(ctx, req)
+	})
 }
 
 func newCollectionsGetCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "get",
-		Usage: "Get a collection",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			id := strings.TrimSpace(cmd.String("id"))
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/collections/"+url.PathEscape(id), nil)
-		},
-	}
+	return newSDKCommand("get", "Get a collection", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
+	}, true, func(cmd *cli.Command, req *clientv1.GetCollectionRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetCollectionRequest) (any, error) {
+		return c.GetCollection(ctx, req)
+	})
 }
 
 func newCollectionsHistoryCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "history",
-		Usage: "Get collection history",
-		Flags: []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true}},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			path := "/v1/collections/" + url.PathEscape(strings.TrimSpace(cmd.String("id"))) + "/history"
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, path, nil)
-		},
-	}
+	return newSDKCommand("history", "Get collection history", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
+	}, true, func(cmd *cli.Command, req *clientv1.GetCollectionHistoryRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetCollectionHistoryRequest) (any, error) {
+		return c.GetCollectionHistory(ctx, req)
+	})
 }
 
 func newCollectionsBatchGetCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "batch-get",
-		Usage: "Batch get collections",
-		Flags: []cli.Flag{
-			requestFileFlag(),
-			repeatedIDsFlag("id", "Collection ID (repeatable or comma-separated)"),
-			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			payload, err := readObjectPayload(cmd)
-			if err != nil {
-				return err
-			}
-			if cmd.IsSet("id") {
-				payload["collectionIds"] = splitCSV(cmd.StringSlice("id"))
-			}
-			setPayloadBoolFlag(cmd, "allow-partial", "allowPartial", payload)
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/collections:batchGet", payload)
-		},
-	}
+	return newSDKCommand("batch-get", "Batch get collections", []cli.Flag{
+		repeatedIDsFlag("id", "Collection ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCollectionsRequest) error {
+		if cmd.IsSet("id") {
+			req.CollectionIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetCollectionsRequest) (any, error) {
+		return c.BatchGetCollections(ctx, req)
+	})
 }
 
 func newCollectionsCreateCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "create",
-		Usage: "Create a collection",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "name", Usage: "Collection name", Required: true},
-			&cli.StringFlag{Name: "type", Usage: "Collection type (binder|wantlist|tradelist|list)", Required: true},
-			&cli.StringFlag{Name: "description", Usage: "Collection description"},
-			&cli.StringFlag{Name: "visibility", Usage: "Visibility (private|shared|public)", Value: "private"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
+	return newSDKCommand("create", "Create a collection", []cli.Flag{
+		&cli.StringFlag{Name: "name", Usage: "Collection name", Required: true},
+		&cli.StringFlag{Name: "type", Usage: "Collection type (binder|wantlist|tradelist|list)", Required: true},
+		&cli.StringFlag{Name: "description", Usage: "Collection description"},
+		&cli.StringFlag{Name: "visibility", Usage: "Visibility (private|shared|public)", Value: "private"},
+		&cli.StringFlag{Name: "collection-id", Usage: "Optional collection ID"},
+	}, true, func(cmd *cli.Command, req *clientv1.CreateCollectionRequest) error {
+		setStringFlag(cmd, "name", &req.Name)
+		if cmd.IsSet("type") {
 			collectionType := parseCollectionType(cmd.String("type"))
 			if collectionType == clientv1.CollectionTypeUnspecified {
 				return cli.Exit("--type must be binder|wantlist|tradelist|list", 2)
 			}
-
-			payload := map[string]any{
-				"name":           strings.TrimSpace(cmd.String("name")),
-				"collectionType": string(collectionType),
+			req.CollectionType = collectionType
+		}
+		setStringFlag(cmd, "description", &req.Description)
+		if cmd.IsSet("visibility") || req.Visibility == clientv1.VisibilityLevelUnspecified {
+			visibility := parseVisibility(cmd.String("visibility"))
+			if visibility == clientv1.VisibilityLevelUnspecified {
+				return cli.Exit("--visibility must be private|shared|public", 2)
 			}
-			setPayloadStringFlag(cmd, "description", "description", payload)
-			if visibility := parseVisibility(cmd.String("visibility")); visibility != clientv1.VisibilityLevelUnspecified {
-				payload["visibility"] = string(visibility)
-			}
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/collections", payload)
-		},
-	}
+			req.Visibility = visibility
+		}
+		setStringFlag(cmd, "collection-id", &req.CollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.CreateCollectionRequest) (any, error) {
+		return c.CreateCollection(ctx, req)
+	})
 }
 
 func newCollectionsUpdateCommand() *cli.Command {
@@ -312,75 +298,68 @@ func newCollectionsUpdateCommand() *cli.Command {
 			&cli.StringFlag{Name: "visibility", Usage: "New visibility (private|shared|public)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-
 			id := strings.TrimSpace(cmd.String("id"))
-			var last map[string]any
+			var last any
 			var anyUpdate bool
 
-			payload := map[string]any{}
-			if cmd.IsSet("name") {
-				payload["name"] = strings.TrimSpace(cmd.String("name"))
-				anyUpdate = true
-			}
-			if cmd.IsSet("description") {
-				payload["description"] = strings.TrimSpace(cmd.String("description"))
-				anyUpdate = true
-			}
-
-			if anyUpdate {
-				if err := st.Service.DoJSON(ctx, http.MethodPut, "/v1/collections/"+url.PathEscape(id), payload, &last, true); err != nil {
-					return err
+			return withSDKClient(ctx, cmd, true, func(c *clientv1.Client) (any, error) {
+				updateReq := &clientv1.UpdateCollectionRequest{CollectionID: id}
+				if cmd.IsSet("name") {
+					name := strings.TrimSpace(cmd.String("name"))
+					updateReq.Name = &name
+					anyUpdate = true
 				}
-			}
-
-			if cmd.IsSet("visibility") {
-				v := parseVisibility(cmd.String("visibility"))
-				if v == clientv1.VisibilityLevelUnspecified {
-					return cli.Exit("--visibility must be private|shared|public", 2)
+				if cmd.IsSet("description") {
+					description := strings.TrimSpace(cmd.String("description"))
+					updateReq.Description = &description
+					anyUpdate = true
 				}
-				if err := st.Service.DoJSON(ctx, http.MethodPatch, "/v1/collections/"+url.PathEscape(id)+"/visibility", map[string]any{"visibility": string(v)}, &last, true); err != nil {
-					return err
+				if updateReq.Name != nil || updateReq.Description != nil {
+					resp, err := c.UpdateCollection(ctx, updateReq)
+					if err != nil {
+						return nil, err
+					}
+					last = resp
 				}
-				anyUpdate = true
-			}
-
-			if !anyUpdate {
-				return cli.Exit("no updates provided", 2)
-			}
-
-			if last != nil {
-				return writeJSON(cmd.Writer, last)
-			}
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/collections/"+url.PathEscape(id), nil)
+				if cmd.IsSet("visibility") {
+					v := parseVisibility(cmd.String("visibility"))
+					if v == clientv1.VisibilityLevelUnspecified {
+						return nil, cli.Exit("--visibility must be private|shared|public", 2)
+					}
+					resp, err := c.UpdateCollectionVisibility(ctx, &clientv1.UpdateCollectionVisibilityRequest{
+						CollectionID: id,
+						Visibility:   &v,
+					})
+					if err != nil {
+						return nil, err
+					}
+					last = resp
+					anyUpdate = true
+				}
+				if !anyUpdate {
+					return nil, cli.Exit("no updates provided", 2)
+				}
+				return last, nil
+			})
 		},
 	}
 }
 
 func newCollectionsArtCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "art",
-		Usage: "Update collection artwork selection",
-		Flags: []cli.Flag{
-			requestFileFlag(),
-			&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
-			&cli.StringFlag{Name: "selected-art-printing-id", Usage: "Selected art printing ID"},
-			&cli.BoolFlag{Name: "clear-selected-art", Usage: "Clear selected artwork"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			payload, err := readObjectPayload(cmd)
-			if err != nil {
-				return err
-			}
-			setPayloadStringFlag(cmd, "selected-art-printing-id", "selectedArtPrintingId", payload)
-			setPayloadBoolFlag(cmd, "clear-selected-art", "clearSelectedArt", payload)
-			path := "/v1/collections/" + url.PathEscape(strings.TrimSpace(cmd.String("id"))) + "/art"
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPut, path, payload)
-		},
-	}
+	return newSDKCommand("art", "Update collection artwork selection", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
+		&cli.StringFlag{Name: "selected-art-printing-id", Usage: "Selected art printing ID"},
+		&cli.BoolFlag{Name: "clear-selected-art", Usage: "Clear selected artwork"},
+	}, true, func(cmd *cli.Command, req *clientv1.UpdateCollectionArtRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		setStringFlag(cmd, "selected-art-printing-id", &req.SelectedArtPrintingID)
+		if cmd.IsSet("clear-selected-art") {
+			req.ClearSelectedArt = cmd.Bool("clear-selected-art")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UpdateCollectionArtRequest) (any, error) {
+		return c.UpdateCollectionArt(ctx, req)
+	})
 }
 
 func newCollectionsDeleteCommand() *cli.Command {
@@ -389,6 +368,7 @@ func newCollectionsDeleteCommand() *cli.Command {
 		Usage: "Delete a collection",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -396,6 +376,9 @@ func newCollectionsDeleteCommand() *cli.Command {
 				return err
 			}
 			id := strings.TrimSpace(cmd.String("id"))
+			if err := confirmAction(cmd, "Delete", "collection", id); err != nil {
+				return err
+			}
 			if _, err := st.Service.DeleteCollection(ctx, &clientv1.DeleteCollectionRequest{CollectionID: id}); err != nil {
 				return err
 			}
@@ -405,51 +388,46 @@ func newCollectionsDeleteCommand() *cli.Command {
 }
 
 func newCollectionsExportCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "export",
-		Usage: "Export a collection",
-		Flags: append(pageFlags(), &cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true}),
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			query := make(url.Values)
-			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
-				query.Set("pageSize", fmt.Sprintf("%d", cmd.Int("page-size")))
-			}
-			setQueryString(query, "nextToken", cmd.String("next-token"))
-			path := "/v1/collections/" + url.PathEscape(strings.TrimSpace(cmd.String("id"))) + ":export"
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, pathWithQuery(path, query), nil)
-		},
-	}
+	return newSDKCommand("export", "Export a collection", append(pageFlags(),
+		&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
+	), true, func(cmd *cli.Command, req *clientv1.ExportCollectionRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ExportCollectionRequest) (any, error) {
+		return c.ExportCollection(ctx, req)
+	})
 }
 
 func newCollectionsImportCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "import",
-		Usage: "Import a collection from JSON",
-		Flags: []cli.Flag{
-			requestFileFlag(),
-			&cli.StringFlag{Name: "id", Usage: "Collection ID"},
-			&cli.StringFlag{Name: "name", Usage: "Collection name"},
-			&cli.StringFlag{Name: "type", Usage: "Collection type"},
-			&cli.StringFlag{Name: "description", Usage: "Description"},
-			&cli.StringFlag{Name: "visibility", Usage: "Visibility"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			payload, err := readObjectPayload(cmd)
-			if err != nil {
-				return err
+	return newSDKCommand("import", "Import a collection from JSON", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Collection ID"},
+		&cli.StringFlag{Name: "name", Usage: "Collection name"},
+		&cli.StringFlag{Name: "type", Usage: "Collection type"},
+		&cli.StringFlag{Name: "description", Usage: "Description"},
+		&cli.StringFlag{Name: "visibility", Usage: "Visibility"},
+	}, true, func(cmd *cli.Command, req *clientv1.ImportCollectionRequest) error {
+		setStringFlag(cmd, "id", &req.CollectionID)
+		setStringFlag(cmd, "name", &req.Name)
+		if cmd.IsSet("type") {
+			collectionType := parseCollectionType(cmd.String("type"))
+			if collectionType == clientv1.CollectionTypeUnspecified {
+				return cli.Exit("--type must be binder|wantlist|tradelist|list", 2)
 			}
-			setPayloadStringFlag(cmd, "id", "collectionId", payload)
-			setPayloadStringFlag(cmd, "name", "name", payload)
-			if cmd.IsSet("type") {
-				payload["collectionType"] = string(parseCollectionType(cmd.String("type")))
+			req.CollectionType = collectionType
+		}
+		setStringFlag(cmd, "description", &req.Description)
+		if cmd.IsSet("visibility") {
+			visibility := parseVisibility(cmd.String("visibility"))
+			if visibility == clientv1.VisibilityLevelUnspecified {
+				return cli.Exit("--visibility must be private|shared|public", 2)
 			}
-			setPayloadStringFlag(cmd, "description", "description", payload)
-			if cmd.IsSet("visibility") {
-				payload["visibility"] = string(parseVisibility(cmd.String("visibility")))
-			}
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/collections:import", payload)
-		},
-	}
+			req.Visibility = visibility
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ImportCollectionRequest) (any, error) {
+		return c.ImportCollection(ctx, req)
+	})
 }
 
 func newCollectionsValuationCommand() *cli.Command {
@@ -466,20 +444,15 @@ func newCollectionsValuationCommand() *cli.Command {
 }
 
 func newCollectionsTradeItemsCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "trade-items",
-		Usage: "List tradable collection items",
-		Flags: append(pageFlags(), &cli.StringFlag{Name: "user-id", Usage: "Filter by user ID"}),
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			query := make(url.Values)
-			setQueryString(query, "userId", cmd.String("user-id"))
-			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
-				query.Set("pageSize", fmt.Sprintf("%d", cmd.Int("page-size")))
-			}
-			setQueryString(query, "nextToken", cmd.String("next-token"))
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, pathWithQuery("/v1/trade_items", query), nil)
-		},
-	}
+	return newSDKCommand("trade-items", "List tradable collection items", append(pageFlags(),
+		&cli.StringFlag{Name: "user-id", Usage: "Filter by user ID"},
+	), true, func(cmd *cli.Command, req *clientv1.ListTradeItemsRequest) error {
+		setStringFlag(cmd, "user-id", &req.UserID)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListTradeItemsRequest) (any, error) {
+		return c.ListTradeItems(ctx, req)
+	})
 }
 
 func parseCollectionScope(v string) clientv1.CollectionListScope {
@@ -560,155 +533,146 @@ func newCollectionItemsCommand() *cli.Command {
 }
 
 func newCollectionItemsListCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "list",
-		Usage: "List collection items",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
-			&cli.StringFlag{Name: "card-id", Usage: "Filter by card ID"},
-			&cli.StringFlag{Name: "printing-id", Usage: "Filter by printing ID"},
-			&cli.StringFlag{Name: "product-id", Usage: "Filter by product ID"},
-			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
-			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			query := make(url.Values)
-			setQueryString(query, "collectionId", cmd.String("collection-id"))
-			setQueryString(query, "cardId", cmd.String("card-id"))
-			setQueryString(query, "printingId", cmd.String("printing-id"))
-			setQueryString(query, "productId", cmd.String("product-id"))
-			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
-				query.Set("pageSize", fmt.Sprintf("%d", cmd.Int("page-size")))
-			}
-			setQueryString(query, "nextToken", cmd.String("next-token"))
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, pathWithQuery("/v1/collection_items", query), nil)
-		},
-	}
+	return newSDKCommand("list", "List collection items", []cli.Flag{
+		&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"},
+		&cli.StringFlag{Name: "card-id", Usage: "Filter by card ID"},
+		&cli.StringFlag{Name: "printing-id", Usage: "Filter by printing ID"},
+		&cli.StringFlag{Name: "product-id", Usage: "Filter by product ID"},
+		&cli.IntFlag{Name: "page-size", Usage: "Page size"},
+		&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
+	}, true, func(cmd *cli.Command, req *clientv1.ListCollectionItemsRequest) error {
+		setStringFlag(cmd, "collection-id", &req.CollectionID)
+		setStringFlag(cmd, "card-id", &req.CardID)
+		setStringFlag(cmd, "printing-id", &req.PrintingID)
+		setStringFlag(cmd, "product-id", &req.ProductID)
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListCollectionItemsRequest) (any, error) {
+		return c.ListCollectionItems(ctx, req)
+	})
 }
 
 func newCollectionItemsGetCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "get",
-		Usage: "Get a collection item",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Usage: "Item ID", Required: true},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			id := strings.TrimSpace(cmd.String("id"))
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodGet, "/v1/collection_items/"+url.PathEscape(id), nil)
-		},
-	}
+	return newSDKCommand("get", "Get a collection item", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Item ID", Required: true},
+	}, true, func(cmd *cli.Command, req *clientv1.GetCollectionItemRequest) error {
+		setStringFlag(cmd, "id", &req.ItemID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetCollectionItemRequest) (any, error) {
+		return c.GetCollectionItem(ctx, req)
+	})
 }
 
 func newCollectionItemsAddCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "add",
-		Usage: "Add an item to a collection",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
-			&cli.StringFlag{Name: "product-id", Usage: "Product ID", Required: true},
-			&cli.IntFlag{Name: "quantity", Usage: "Quantity (>= 1)", Value: 1},
-			&cli.StringFlag{Name: "condition", Usage: "Condition (near_mint|lightly_played|heavily_played|damaged)", Value: "near_mint"},
-			&cli.Float64Flag{Name: "value", Usage: "Optional value"},
-			&cli.StringFlag{Name: "item-id", Usage: "Optional item ID (idempotency)"},
-			&cli.IntFlag{Name: "trade-quantity", Usage: "Trade quantity"},
-			&cli.StringFlag{Name: "notes", Usage: "Notes"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
+	return newSDKCommand("add", "Add an item to a collection", []cli.Flag{
+		&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
+		&cli.StringFlag{Name: "product-id", Usage: "Product ID", Required: true},
+		&cli.IntFlag{Name: "quantity", Usage: "Quantity (>= 1)", Value: 1},
+		&cli.StringFlag{Name: "condition", Usage: "Condition (near_mint|lightly_played|heavily_played|damaged)", Value: "near_mint"},
+		&cli.Float64Flag{Name: "value", Usage: "Optional value"},
+		&cli.StringFlag{Name: "item-id", Usage: "Optional item ID (idempotency)"},
+		&cli.IntFlag{Name: "trade-quantity", Usage: "Trade quantity"},
+		&cli.StringFlag{Name: "notes", Usage: "Notes"},
+	}, true, func(cmd *cli.Command, req *clientv1.CreateCollectionItemRequest) error {
+		setStringFlag(cmd, "collection-id", &req.CollectionID)
+		setStringFlag(cmd, "product-id", &req.ProductID)
+		if cmd.IsSet("quantity") || req.Quantity == 0 {
 			qty := cmd.Int("quantity")
 			if qty < 1 {
 				return cli.Exit("--quantity must be >= 1", 2)
 			}
+			req.Quantity = int32(qty)
+		}
+		if req.Quantity < 1 {
+			return cli.Exit("--quantity must be >= 1", 2)
+		}
+		if cmd.IsSet("condition") || req.Condition == clientv1.ConditionUnspecified || req.Condition == "" {
 			cond, ok := parseCondition(cmd.String("condition"))
 			if !ok {
 				return cli.Exit("--condition must be near_mint|lightly_played|heavily_played|damaged", 2)
 			}
-
-			payload := map[string]any{
-				"collectionId": strings.TrimSpace(cmd.String("collection-id")),
-				"productId":    strings.TrimSpace(cmd.String("product-id")),
-				"quantity":     qty,
-				"condition":    string(cond),
-			}
-			if cmd.IsSet("value") {
-				payload["value"] = cmd.Float64("value")
-			}
-			setPayloadStringFlag(cmd, "item-id", "itemId", payload)
-			setPayloadIntFlag(cmd, "trade-quantity", "tradeQuantity", payload)
-			setPayloadStringFlag(cmd, "notes", "notes", payload)
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/collection_items", payload)
-		},
-	}
+			req.Condition = cond
+		}
+		setFloat64Flag(cmd, "value", &req.Value)
+		setStringFlag(cmd, "item-id", &req.ItemID)
+		if cmd.IsSet("trade-quantity") {
+			req.TradeQuantity = int32(cmd.Int("trade-quantity"))
+		}
+		setStringFlag(cmd, "notes", &req.Notes)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.CreateCollectionItemRequest) (any, error) {
+		return c.CreateCollectionItem(ctx, req)
+	})
 }
 
 func newCollectionItemsUpdateCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "update",
-		Usage: "Update a collection item",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Usage: "Item ID", Required: true},
-			&cli.IntFlag{Name: "quantity", Usage: "Quantity (>= 1)"},
-			&cli.StringFlag{Name: "condition", Usage: "Condition (near_mint|lightly_played|heavily_played|damaged)"},
-			&cli.Float64Flag{Name: "value", Usage: "Value"},
-			&cli.BoolFlag{Name: "pinned", Usage: "Pin or unpin item"},
-			&cli.StringFlag{Name: "expected-updated-at", Usage: "Expected updated_at precondition (RFC3339)"},
-			&cli.StringFlag{Name: "client-mutation-id", Usage: "Client mutation ID"},
-			&cli.IntFlag{Name: "trade-quantity", Usage: "Trade quantity"},
-			&cli.StringFlag{Name: "notes", Usage: "Notes"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			payload := map[string]any{}
-			var anyUpdate bool
-
-			if cmd.IsSet("quantity") {
-				qty := cmd.Int("quantity")
-				if qty < 1 {
-					return cli.Exit("--quantity must be >= 1", 2)
-				}
-				payload["quantity"] = qty
-				anyUpdate = true
+	return newSDKCommand("update", "Update a collection item", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Item ID", Required: true},
+		&cli.IntFlag{Name: "quantity", Usage: "Quantity (>= 1)"},
+		&cli.StringFlag{Name: "condition", Usage: "Condition (near_mint|lightly_played|heavily_played|damaged)"},
+		&cli.Float64Flag{Name: "value", Usage: "Value"},
+		&cli.BoolFlag{Name: "pinned", Usage: "Pin or unpin item"},
+		&cli.StringFlag{Name: "expected-updated-at", Usage: "Expected updated_at precondition (RFC3339)"},
+		&cli.StringFlag{Name: "client-mutation-id", Usage: "Client mutation ID"},
+		&cli.IntFlag{Name: "trade-quantity", Usage: "Trade quantity"},
+		&cli.StringFlag{Name: "notes", Usage: "Notes"},
+	}, true, func(cmd *cli.Command, req *clientv1.UpdateCollectionItemRequest) error {
+		hasUpdate := strings.TrimSpace(cmd.String("file")) != ""
+		setStringFlag(cmd, "id", &req.ItemID)
+		if cmd.IsSet("quantity") {
+			qty := cmd.Int("quantity")
+			if qty < 1 {
+				return cli.Exit("--quantity must be >= 1", 2)
 			}
-			if cmd.IsSet("condition") {
-				cond, ok := parseCondition(cmd.String("condition"))
-				if !ok {
-					return cli.Exit("--condition must be near_mint|lightly_played|heavily_played|damaged", 2)
-				}
-				payload["condition"] = string(cond)
-				anyUpdate = true
+			v := int32(qty)
+			req.Quantity = &v
+			hasUpdate = true
+		}
+		if cmd.IsSet("condition") {
+			cond, ok := parseCondition(cmd.String("condition"))
+			if !ok {
+				return cli.Exit("--condition must be near_mint|lightly_played|heavily_played|damaged", 2)
 			}
-			if cmd.IsSet("value") {
-				payload["value"] = cmd.Float64("value")
-				anyUpdate = true
+			req.Condition = &cond
+			hasUpdate = true
+		}
+		if cmd.IsSet("value") {
+			v := cmd.Float64("value")
+			req.Value = &v
+			hasUpdate = true
+		}
+		if cmd.IsSet("pinned") {
+			v := cmd.Bool("pinned")
+			req.Pinned = &v
+			hasUpdate = true
+		}
+		if cmd.IsSet("expected-updated-at") {
+			if err := setTimeFlag(cmd, "expected-updated-at", &req.ExpectedUpdatedAt); err != nil {
+				return err
 			}
-			if cmd.IsSet("pinned") {
-				payload["pinned"] = cmd.Bool("pinned")
-				anyUpdate = true
-			}
-			if cmd.IsSet("expected-updated-at") {
-				payload["expectedUpdatedAt"] = strings.TrimSpace(cmd.String("expected-updated-at"))
-				anyUpdate = true
-			}
-			if cmd.IsSet("client-mutation-id") {
-				payload["clientMutationId"] = strings.TrimSpace(cmd.String("client-mutation-id"))
-				anyUpdate = true
-			}
-			if cmd.IsSet("trade-quantity") {
-				payload["tradeQuantity"] = cmd.Int("trade-quantity")
-				anyUpdate = true
-			}
-			if cmd.IsSet("notes") {
-				payload["notes"] = strings.TrimSpace(cmd.String("notes"))
-				anyUpdate = true
-			}
-
-			if !anyUpdate {
-				return cli.Exit("no updates provided", 2)
-			}
-
-			path := "/v1/collection_items/" + url.PathEscape(strings.TrimSpace(cmd.String("id")))
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPut, path, payload)
-		},
-	}
+			hasUpdate = true
+		}
+		if cmd.IsSet("client-mutation-id") {
+			req.ClientMutationID = strings.TrimSpace(cmd.String("client-mutation-id"))
+			hasUpdate = true
+		}
+		if cmd.IsSet("trade-quantity") {
+			v := int32(cmd.Int("trade-quantity"))
+			req.TradeQuantity = &v
+			hasUpdate = true
+		}
+		if cmd.IsSet("notes") {
+			notes := strings.TrimSpace(cmd.String("notes"))
+			req.Notes = &notes
+			hasUpdate = true
+		}
+		if !hasUpdate {
+			return cli.Exit("no updates provided", 2)
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UpdateCollectionItemRequest) (any, error) {
+		return c.UpdateCollectionItem(ctx, req)
+	})
 }
 
 func newCollectionItemsAdjustCommand() *cli.Command {
@@ -741,47 +705,33 @@ func newCollectionItemsAdjustCommand() *cli.Command {
 }
 
 func newCollectionItemsTransferCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "transfer",
-		Usage: "Transfer an item to another collection",
-		Flags: []cli.Flag{
-			requestFileFlag(),
-			&cli.StringFlag{Name: "id", Usage: "Item ID"},
-			&cli.StringFlag{Name: "destination-collection-id", Usage: "Destination collection ID"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			payload, err := readObjectPayload(cmd)
-			if err != nil {
-				return err
-			}
-			setPayloadStringFlag(cmd, "destination-collection-id", "destinationCollectionId", payload)
-			path := "/v1/collection_items/" + url.PathEscape(strings.TrimSpace(cmd.String("id"))) + ":transfer"
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, path, payload)
-		},
-	}
+	return newSDKCommand("transfer", "Transfer an item to another collection", []cli.Flag{
+		&cli.StringFlag{Name: "id", Usage: "Item ID", Required: true},
+		&cli.StringFlag{Name: "destination-collection-id", Usage: "Destination collection ID"},
+	}, true, func(cmd *cli.Command, req *clientv1.TransferCollectionItemRequest) error {
+		setStringFlag(cmd, "id", &req.ItemID)
+		setStringFlag(cmd, "destination-collection-id", &req.DestinationCollectionID)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.TransferCollectionItemRequest) (any, error) {
+		return c.TransferCollectionItem(ctx, req)
+	})
 }
 
 func newCollectionItemsBatchGetCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "batch-get",
-		Usage: "Batch get collection items",
-		Flags: []cli.Flag{
-			requestFileFlag(),
-			repeatedIDsFlag("id", "Item ID (repeatable or comma-separated)"),
-			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
-		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			payload, err := readObjectPayload(cmd)
-			if err != nil {
-				return err
-			}
-			if cmd.IsSet("id") {
-				payload["itemIds"] = splitCSV(cmd.StringSlice("id"))
-			}
-			setPayloadBoolFlag(cmd, "allow-partial", "allowPartial", payload)
-			return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/collection_items:batchGet", payload)
-		},
-	}
+	return newSDKCommand("batch-get", "Batch get collection items", []cli.Flag{
+		repeatedIDsFlag("id", "Item ID (repeatable or comma-separated)"),
+		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCollectionItemsRequest) error {
+		if cmd.IsSet("id") {
+			req.ItemIDs = splitCSV(cmd.StringSlice("id"))
+		}
+		if cmd.IsSet("allow-partial") {
+			req.AllowPartial = cmd.Bool("allow-partial")
+		}
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetCollectionItemsRequest) (any, error) {
+		return c.BatchGetCollectionItems(ctx, req)
+	})
 }
 
 func newCollectionItemsDeleteCommand() *cli.Command {
@@ -790,6 +740,7 @@ func newCollectionItemsDeleteCommand() *cli.Command {
 		Usage: "Delete a collection item",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "id", Usage: "Item ID", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -797,6 +748,9 @@ func newCollectionItemsDeleteCommand() *cli.Command {
 				return err
 			}
 			id := strings.TrimSpace(cmd.String("id"))
+			if err := confirmAction(cmd, "Delete", "collection item", id); err != nil {
+				return err
+			}
 			if _, err := st.Service.DeleteCollectionItem(ctx, &clientv1.DeleteCollectionItemRequest{ItemID: id}); err != nil {
 				return err
 			}

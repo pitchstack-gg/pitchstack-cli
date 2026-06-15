@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -26,7 +25,6 @@ func newLoginCommand() *cli.Command {
 			&cli.DurationFlag{Name: "timeout", Usage: "Max time to wait for browser login to complete", Value: 5 * time.Minute},
 			&cli.StringFlag{Name: "oauth-base-url", Usage: "OAuth web base URL (or set PITCHSTACK_OAUTH_BASE_URL)"},
 			&cli.StringFlag{Name: "email", Usage: "Account email (legacy login only)"},
-			&cli.StringFlag{Name: "password", Usage: "Account password (legacy login only; discouraged; will appear in shell history)"},
 			&cli.StringFlag{Name: "device", Usage: "Optional device info label (legacy login only)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -35,7 +33,7 @@ func newLoginCommand() *cli.Command {
 				return err
 			}
 
-			useLegacy := cmd.Bool("legacy") || cmd.IsSet("email") || cmd.IsSet("password")
+			useLegacy := cmd.Bool("legacy") || cmd.IsSet("email")
 			if !useLegacy {
 				oauthBaseURL := strings.TrimSpace(cmd.String("oauth-base-url"))
 				if oauthBaseURL == "" {
@@ -126,19 +124,18 @@ func newLoginCommand() *cli.Command {
 			}
 
 			email := strings.TrimSpace(cmd.String("email"))
-			password := strings.TrimSpace(cmd.String("password"))
+			password := ""
 			device := strings.TrimSpace(cmd.String("device"))
 
-			reader := bufio.NewReader(cmd.Reader)
 			if email == "" {
-				fmt.Fprint(cmd.ErrWriter, "Email: ")
-				line, _ := reader.ReadString('\n')
-				email = strings.TrimSpace(line)
+				email, err = readPrompt(cmd, "Email: ")
+				if err != nil {
+					return err
+				}
 			}
-			if password == "" {
-				fmt.Fprint(cmd.ErrWriter, "Password (will echo): ")
-				line, _ := reader.ReadString('\n')
-				password = strings.TrimSpace(line)
+			password, err = readSecret(cmd, "Password: ")
+			if err != nil {
+				return err
 			}
 			if email == "" || password == "" {
 				return cli.Exit("email and password are required", 2)
@@ -186,7 +183,6 @@ func newSignupCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "email", Usage: "Account email"},
 			&cli.StringFlag{Name: "username", Usage: "Optional username"},
-			&cli.StringFlag{Name: "password", Usage: "Account password (discouraged; will appear in shell history)"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -196,23 +192,23 @@ func newSignupCommand() *cli.Command {
 
 			email := strings.TrimSpace(cmd.String("email"))
 			username := strings.TrimSpace(cmd.String("username"))
-			password := strings.TrimSpace(cmd.String("password"))
+			password := ""
 
-			reader := bufio.NewReader(cmd.Reader)
 			if email == "" {
-				fmt.Fprint(cmd.ErrWriter, "Email: ")
-				line, _ := reader.ReadString('\n')
-				email = strings.TrimSpace(line)
+				email, err = readPrompt(cmd, "Email: ")
+				if err != nil {
+					return err
+				}
 			}
 			if username == "" {
-				fmt.Fprint(cmd.ErrWriter, "Username (optional): ")
-				line, _ := reader.ReadString('\n')
-				username = strings.TrimSpace(line)
+				username, err = readPrompt(cmd, "Username (optional): ")
+				if err != nil {
+					return err
+				}
 			}
-			if password == "" {
-				fmt.Fprint(cmd.ErrWriter, "Password (will echo): ")
-				line, _ := reader.ReadString('\n')
-				password = strings.TrimSpace(line)
+			password, err = readSecret(cmd, "Password: ")
+			if err != nil {
+				return err
 			}
 			if email == "" || password == "" {
 				return cli.Exit("email and password are required", 2)

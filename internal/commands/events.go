@@ -33,28 +33,9 @@ func newEventsCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.CancelCommunityEventRequest) (any, error) {
 				return c.CancelCommunityEvent(ctx, req)
 			}),
-			newSDKCommand("hide", "Hide an event", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Event ID"}, &cli.StringFlag{Name: "reason", Usage: "Reason"}}, true, func(cmd *cli.Command, req *clientv1.HideEventRequest) error {
-				setStringFlag(cmd, "id", &req.EventID)
-				setStringFlag(cmd, "reason", &req.Reason)
-				return nil
-			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.HideEventRequest) (any, error) {
-				return c.HideEvent(ctx, req)
-			}),
-			newSDKCommand("unhide", "Unhide an event", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Event ID"}}, true, func(cmd *cli.Command, req *clientv1.UnhideEventRequest) error {
-				setStringFlag(cmd, "id", &req.EventID)
-				return nil
-			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnhideEventRequest) (any, error) {
-				return c.UnhideEvent(ctx, req)
-			}),
 			newEventsStoresCommand(),
 			newSDKNoRequestCommand("filters", "List event filter values", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
 				return c.ListEventFilters(ctx)
-			}),
-			newSDKCommand("gem-scan", "Get a GEM locator scan", []cli.Flag{&cli.StringFlag{Name: "run-id", Usage: "Run ID"}}, true, func(cmd *cli.Command, req *clientv1.GetGemLocatorScanRequest) error {
-				setStringFlag(cmd, "run-id", &req.RunID)
-				return nil
-			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetGemLocatorScanRequest) (any, error) {
-				return c.GetGemLocatorScan(ctx, req)
 			}),
 		},
 	}

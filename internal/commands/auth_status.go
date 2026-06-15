@@ -18,13 +18,6 @@ func newAuthCommand() *cli.Command {
 			newAuthMeCommand(),
 			newAuthAPIKeysCommand(),
 			newAuthPasswordCommand(),
-			newAuthMethodsCommand(),
-			newAuthOAuthCommand(),
-			newAuthPatreonCommand(),
-			newAuthInternalCommand(),
-			newAuthTokensCommand(),
-			newAuthUsersCommand(),
-			newAuthPasskeysCommand(),
 		},
 	}
 }

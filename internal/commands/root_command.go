@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"io"
 
 	"github.com/pitchstack-gg/pitchstack-cli/internal/paths"
@@ -17,20 +18,19 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 		Writer:                 stdout,
 		ErrWriter:              stderr,
 		Before:                 loadState,
+		ExitErrHandler:         func(context.Context, *cli.Command, error) {},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "config",
 				Usage:    "Path to config file",
 				Value:    paths.DefaultConfigPath(),
 				Aliases:  []string{"c"},
-				Local:    true,
 				OnlyOnce: true,
 			},
 			&cli.StringFlag{
 				Name:     "profile",
 				Usage:    "Config profile to use",
 				Aliases:  []string{"p"},
-				Local:    true,
 				OnlyOnce: true,
 			},
 		},
@@ -54,7 +54,6 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 			newNewsCommand(),
 			newNotificationsCommand(),
 			newPullsCommand(),
-			newSyncCommand(),
 			newConfigCommand(),
 			newVersionCommand(),
 		},

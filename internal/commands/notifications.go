@@ -2,7 +2,6 @@ package commands
 
 import (
 	"context"
-	"net/http"
 
 	clientv1 "github.com/pitchstack-gg/pitchstack-go/client/v1"
 	"github.com/urfave/cli/v3"
@@ -147,9 +146,9 @@ func newInboxCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetMessageRequest) (any, error) {
 				return c.GetMessage(ctx, req)
 			}),
-			newSDKCommand("delete", "Delete a message", []cli.Flag{&cli.StringFlag{Name: "message-id", Usage: "Message ID"}}, true, func(cmd *cli.Command, req *clientv1.DeleteMessageRequest) error {
+			newSDKCommand("delete", "Delete a message", []cli.Flag{&cli.StringFlag{Name: "message-id", Usage: "Message ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.DeleteMessageRequest) error {
 				setStringFlag(cmd, "message-id", &req.MessageID)
-				return nil
+				return confirmAction(cmd, "Delete", "message", req.MessageID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeleteMessageRequest) (any, error) {
 				return c.DeleteMessage(ctx, req)
 			}),
@@ -159,13 +158,9 @@ func newInboxCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.MarkReadRequest) (any, error) {
 				return c.MarkRead(ctx, req)
 			}),
-			{
-				Name:  "mark-all-read",
-				Usage: "Mark all unread active messages read",
-				Action: func(ctx context.Context, cmd *cli.Command) error {
-					return writeAuthenticatedJSON(ctx, cmd, http.MethodPost, "/v1/notifications:markAllRead", map[string]any{})
-				},
-			},
+			newSDKCommand("mark-all-read", "Mark all unread active messages read", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.MarkAllReadRequest) (any, error) {
+				return c.MarkAllRead(ctx, req)
+			}),
 			newSDKCommand("archive", "Archive a message", []cli.Flag{&cli.StringFlag{Name: "message-id", Usage: "Message ID"}}, true, func(cmd *cli.Command, req *clientv1.ArchiveMessageRequest) error {
 				setStringFlag(cmd, "message-id", &req.MessageID)
 				return nil

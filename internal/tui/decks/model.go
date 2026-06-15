@@ -613,9 +613,9 @@ func (m Model) emptyMessage() string {
 	}
 	if m.options.MissingDB {
 		if !m.options.AutoSync {
-			return "No local PowerSync database found. Log in, then open Decks again to initialize and pull local sync."
+			return "No local deck cache found. Log in, then open Decks again to sync decks."
 		}
-		return "No local PowerSync database found. Run `pitchstack sync local init && pitchstack sync local pull`."
+		return "No local deck cache found. Decks sync automatically while the TUI is open."
 	}
 	if strings.TrimSpace(m.input.Value()) != "" {
 		return "No decks match your search."
@@ -626,7 +626,7 @@ func (m Model) emptyMessage() string {
 	case powersync.DeckListScopeShared:
 		return "No shared decks in local sync."
 	default:
-		return "No local decks synced yet. Run `pitchstack sync local pull`."
+		return "No local decks synced yet. Open the Decks tab while logged in to refresh."
 	}
 }
 

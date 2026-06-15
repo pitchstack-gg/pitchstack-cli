@@ -109,12 +109,19 @@ func Load(path string) (*Config, error) {
 	return &cfg, nil
 }
 
-func WriteDefault(path string) error {
+func WriteDefault(path string, force bool) error {
 	cfg := Default()
 
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
+	}
+	if !force {
+		if _, err := os.Stat(path); err == nil {
+			return fmt.Errorf("%s already exists (use --force to overwrite)", path)
+		} else if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("stat %s: %w", path, err)
+		}
 	}
 
 	data, err := json.MarshalIndent(cfg, "", "  ")

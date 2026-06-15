@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -48,34 +46,13 @@ func TestCollectionsCountsLocalCommand(t *testing.T) {
 	}
 }
 
-func TestSyncLocalInitCommand(t *testing.T) {
-	var gotAuth string
-	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/sync/powersync/client-config" {
-			http.NotFound(w, r)
-			return
+func TestSyncCommandIsNotExposed(t *testing.T) {
+	t.Parallel()
+	root := NewRootCommand(strings.NewReader(""), io.Discard, io.Discard)
+	for _, command := range root.Commands {
+		if command.Name == "sync" {
+			t.Fatalf("sync command should not be exposed")
 		}
-		gotAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"powerSyncUrl":"https://powersync.example.test/sync","syncEpoch":"epoch-1"}`))
-	}))
-	defer api.Close()
-	cfgPath := setupCommandTestProfile(t, api.URL)
-
-	var stdout bytes.Buffer
-	root := NewRootCommand(strings.NewReader(""), &stdout, io.Discard)
-	if err := root.Run(context.Background(), []string{"pitchstack", "--config", cfgPath, "--profile", "test", "sync", "local", "init"}); err != nil {
-		t.Fatalf("run: %v", err)
-	}
-	if gotAuth != "Bearer tok" {
-		t.Fatalf("auth = %q, want Bearer tok", gotAuth)
-	}
-	var out powersync.InitResult
-	if err := json.Unmarshal(stdout.Bytes(), &out); err != nil {
-		t.Fatalf("decode output: %v\n%s", err, stdout.String())
-	}
-	if out.DeviceID == "" || out.SyncEpoch != "epoch-1" {
-		t.Fatalf("output = %#v", out)
 	}
 }
 
@@ -124,6 +101,7 @@ func setupCommandTestProfile(t *testing.T, baseURL string) string {
 	store := session.NewStore(paths.SessionPath("test"))
 	if err := store.Save(&session.Session{
 		BaseURL:              baseURL,
+		UserID:               "user-1",
 		AccessToken:          "tok",
 		RefreshToken:         "ref",
 		AccessTokenExpiresAt: time.Now().Add(time.Hour),

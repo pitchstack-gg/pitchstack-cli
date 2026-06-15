@@ -43,9 +43,9 @@ func newPullsCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListPullsRequest) (any, error) {
 				return c.ListPulls(ctx, req)
 			}),
-			newSDKCommand("delete", "Delete a pull", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Pull ID"}}, true, func(cmd *cli.Command, req *clientv1.DeletePullRequest) error {
+			newSDKCommand("delete", "Delete a pull", []cli.Flag{&cli.StringFlag{Name: "id", Usage: "Pull ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.DeletePullRequest) error {
 				setStringFlag(cmd, "id", &req.PullID)
-				return nil
+				return confirmAction(cmd, "Delete", "pull", req.PullID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeletePullRequest) (any, error) {
 				return c.DeletePull(ctx, req)
 			}),

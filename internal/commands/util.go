@@ -2,11 +2,14 @@ package commands
 
 import (
 	"errors"
-	"net/url"
+	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v3"
+	"golang.org/x/term"
 )
 
 func boolPtr(cmd *cli.Command, name string) *bool {
@@ -33,23 +36,6 @@ func float64Ptr(cmd *cli.Command, name string) *float64 {
 	return &v
 }
 
-func parseResourceDescriptor(spec string) (resourceType string, id string, err error) {
-	spec = strings.TrimSpace(spec)
-	if spec == "" {
-		return "", "", errors.New("empty")
-	}
-	parts := strings.SplitN(spec, ":", 2)
-	if len(parts) != 2 {
-		return "", "", errors.New("expected <type>:<id>")
-	}
-	resourceType = strings.TrimSpace(parts[0])
-	id = strings.TrimSpace(parts[1])
-	if resourceType == "" || id == "" {
-		return "", "", errors.New("expected <type>:<id>")
-	}
-	return resourceType, id, nil
-}
-
 func parseInt32(s string) (*int32, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -63,39 +49,77 @@ func parseInt32(s string) (*int32, error) {
 	return &vs, nil
 }
 
-func parseStringMap(values []string) (map[string]string, error) {
-	out := map[string]string{}
-	for _, value := range values {
-		for _, part := range strings.Split(value, ",") {
-			part = strings.TrimSpace(part)
-			if part == "" {
-				continue
+func yesFlag() cli.Flag {
+	return &cli.BoolFlag{Name: "yes", Aliases: []string{"y"}, Usage: "Skip confirmation prompt"}
+}
+
+func confirmAction(cmd *cli.Command, verb, resource, id string) error {
+	if cmd.Bool("yes") {
+		return nil
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return cli.Exit("missing id", 2)
+	}
+	if _, err := fmt.Fprintf(cmd.ErrWriter, "%s %s %s? Type yes to continue: ", verb, resource, id); err != nil {
+		return err
+	}
+	line, err := readLine(cmd.Reader)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(line) != "yes" {
+		return cli.Exit("aborted", 1)
+	}
+	return nil
+}
+
+func readPrompt(cmd *cli.Command, prompt string) (string, error) {
+	if _, err := fmt.Fprint(cmd.ErrWriter, prompt); err != nil {
+		return "", err
+	}
+	line, err := readLine(cmd.Reader)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
+
+func readSecret(cmd *cli.Command, prompt string) (string, error) {
+	if _, err := fmt.Fprint(cmd.ErrWriter, prompt); err != nil {
+		return "", err
+	}
+	if f, ok := cmd.Reader.(*os.File); ok && term.IsTerminal(int(f.Fd())) {
+		data, err := term.ReadPassword(int(f.Fd()))
+		_, _ = fmt.Fprintln(cmd.ErrWriter)
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimSpace(string(data)), nil
+	}
+	line, err := readLine(cmd.Reader)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(line), nil
+}
+
+func readLine(r io.Reader) (string, error) {
+	var b strings.Builder
+	buf := make([]byte, 1)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			if buf[0] == '\n' {
+				return b.String(), nil
 			}
-			key, val, ok := strings.Cut(part, "=")
-			if !ok {
-				return nil, errors.New("expected key=value")
+			b.WriteByte(buf[0])
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return b.String(), nil
 			}
-			key = strings.TrimSpace(key)
-			val = strings.TrimSpace(val)
-			if key == "" {
-				return nil, errors.New("metadata key must not be empty")
-			}
-			out[key] = val
+			return "", err
 		}
 	}
-	return out, nil
-}
-
-func setQueryString(query url.Values, key string, value string) {
-	value = strings.TrimSpace(value)
-	if value != "" {
-		query.Set(key, value)
-	}
-}
-
-func pathWithQuery(path string, query url.Values) string {
-	if len(query) == 0 {
-		return path
-	}
-	return path + "?" + query.Encode()
 }

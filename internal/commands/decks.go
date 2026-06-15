@@ -87,6 +87,7 @@ func newDecksGetCommand() *cli.Command {
 		Usage: "Get a deck",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "id", Usage: "Deck ID", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -235,6 +236,7 @@ func newDecksDeleteCommand() *cli.Command {
 		Usage: "Delete a deck",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "id", Usage: "Deck ID", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -242,6 +244,9 @@ func newDecksDeleteCommand() *cli.Command {
 				return err
 			}
 			id := strings.TrimSpace(cmd.String("id"))
+			if err := confirmAction(cmd, "Delete", "deck", id); err != nil {
+				return err
+			}
 			if _, err := st.Service.DeleteDeck(ctx, &clientv1.DeleteDeckRequest{DeckID: id}); err != nil {
 				return err
 			}
@@ -466,9 +471,9 @@ func newDecksStarredCommand() *cli.Command {
 }
 
 func newDecksPermissionsStopShareCommand() *cli.Command {
-	return newSDKCommand("stop-share", "Remove all explicit deck shares", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}}, true, func(cmd *cli.Command, req *clientv1.StopDeckShareRequest) error {
+	return newSDKCommand("stop-share", "Remove all explicit deck shares", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.StopDeckShareRequest) error {
 		setStringFlag(cmd, "deck-id", &req.DeckID)
-		return nil
+		return confirmAction(cmd, "Remove", "deck shares", req.DeckID)
 	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StopDeckShareRequest) (any, error) {
 		return c.StopDeckShare(ctx, req)
 	})
@@ -519,10 +524,10 @@ func newDecksMatchesCommand() *cli.Command {
 			newSDKCommand("get", "Get a deck version match", deckMatchIDFlags(), true, applyDeckMatchIDFlags, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetDeckVersionMatchRequest) (any, error) {
 				return c.GetDeckVersionMatch(ctx, req)
 			}),
-			newSDKCommand("delete", "Delete a deck version match", deckMatchIDFlags(), true, func(cmd *cli.Command, req *clientv1.DeleteDeckVersionMatchRequest) error {
+			newSDKCommand("delete", "Delete a deck version match", append(deckMatchIDFlags(), yesFlag()), true, func(cmd *cli.Command, req *clientv1.DeleteDeckVersionMatchRequest) error {
 				setStringFlag(cmd, "deck-version-id", &req.DeckVersionID)
 				setStringFlag(cmd, "match-id", &req.MatchID)
-				return nil
+				return confirmAction(cmd, "Delete", "deck match", req.MatchID)
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeleteDeckVersionMatchRequest) (any, error) {
 				return c.DeleteDeckVersionMatch(ctx, req)
 			}),
@@ -649,6 +654,7 @@ func newDecksPermissionsRevokeCommand() *cli.Command {
 			&cli.StringFlag{Name: "deck-id", Usage: "Deck ID", Required: true},
 			&cli.StringFlag{Name: "subject-id", Usage: "User ID to revoke access from", Required: true},
 			&cli.StringFlag{Name: "permission", Usage: "Permission (reader|writer)", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -663,6 +669,9 @@ func newDecksPermissionsRevokeCommand() *cli.Command {
 
 			deckID := strings.TrimSpace(cmd.String("deck-id"))
 			subjectID := strings.TrimSpace(cmd.String("subject-id"))
+			if err := confirmAction(cmd, "Revoke", "deck access", deckID); err != nil {
+				return err
+			}
 
 			if _, err := st.Service.RevokeDeckAccess(ctx, &clientv1.RevokeDeckAccessRequest{
 				DeckID:     deckID,
@@ -772,6 +781,7 @@ func newDecksVersionsGetCommand() *cli.Command {
 		Usage: "Get a deck version",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -796,6 +806,7 @@ func newDecksVersionsDeleteCommand() *cli.Command {
 		Usage: "Delete a deck version",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -803,6 +814,9 @@ func newDecksVersionsDeleteCommand() *cli.Command {
 				return err
 			}
 			id := strings.TrimSpace(cmd.String("deck-version-id"))
+			if err := confirmAction(cmd, "Delete", "deck version", id); err != nil {
+				return err
+			}
 			if _, err := st.Service.DeleteDeckVersion(ctx, &clientv1.DeleteDeckVersionRequest{DeckVersionID: id}); err != nil {
 				return err
 			}
@@ -1051,6 +1065,7 @@ func newDecksVersionsSideboardGuidesDeleteCommand() *cli.Command {
 			&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID", Required: true},
 			&cli.StringFlag{Name: "target-type", Usage: "Target type (hero|class|archetype)", Required: true},
 			&cli.StringFlag{Name: "target", Usage: "Target identifier", Required: true},
+			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -1062,11 +1077,15 @@ func newDecksVersionsSideboardGuidesDeleteCommand() *cli.Command {
 			if !ok {
 				return cli.Exit("--target-type must be hero|class|archetype", 2)
 			}
+			target := strings.TrimSpace(cmd.String("target"))
+			if err := confirmAction(cmd, "Delete", "sideboard guide", target); err != nil {
+				return err
+			}
 
 			if _, err := st.Service.DeleteDeckVersionSideboardGuide(ctx, &clientv1.DeleteDeckVersionSideboardGuideRequest{
 				DeckVersionID: strings.TrimSpace(cmd.String("deck-version-id")),
 				TargetType:    targetType,
-				Target:        strings.TrimSpace(cmd.String("target")),
+				Target:        target,
 			}); err != nil {
 				return err
 			}
