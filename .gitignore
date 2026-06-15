@@ -13,6 +13,7 @@
 
 # Local build output
 bin/
+dist/
 
 # Code coverage profiles and other test artifacts
 *.out
@@ -36,3 +37,5 @@ go.work.sum
 
 # Local scratch
 .tmp/
+
+dist

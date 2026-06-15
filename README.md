@@ -21,11 +21,39 @@ OUT_DIR="$HOME/bin" ./scripts/install.sh
 
 ### Install From GitHub Releases
 
-Download the archive for your OS/arch from the GitHub Releases page and place `pitchstack` somewhere on your `PATH`:
+Install the latest release on macOS or Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pitchstack-gg/pitchstack-cli/main/scripts/install-latest.sh | sh
+```
+
+Install somewhere else:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/pitchstack-gg/pitchstack-cli/main/scripts/install-latest.sh | INSTALL_DIR="$HOME/bin" sh
+```
+
+Or download the archive for your OS/arch from the GitHub Releases page and place `pitchstack` somewhere on your `PATH`:
 
 ```sh
 tar -xzf pitchstack_<version>_<os>_<arch>.tar.gz
 sudo install -m 0755 pitchstack /usr/local/bin/pitchstack
+```
+
+## Releases
+
+Releases are built with GoReleaser. To validate the release config locally:
+
+```sh
+make release-check
+make release-snapshot
+```
+
+To publish a release, push a version tag. GitHub Actions will build Linux and macOS binaries, attach archives and checksums to the GitHub Release, and stamp `pitchstack version` from the tag and commit:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 ## Quickstart

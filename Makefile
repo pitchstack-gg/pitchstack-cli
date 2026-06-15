@@ -19,3 +19,11 @@ install:
 .PHONY: test
 test:
 	go test ./...
+
+.PHONY: release-check
+release-check:
+	go run github.com/goreleaser/goreleaser/v2@latest check
+
+.PHONY: release-snapshot
+release-snapshot:
+	go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean --skip=publish
