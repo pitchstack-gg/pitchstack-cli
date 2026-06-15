@@ -2,10 +2,12 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"strings"
+	"time"
 
-	clientv1 "github.com/pitchstack-gg/pitchstack-go/client/v1"
-
+	"github.com/pitchstack-gg/pitchstack-cli/internal/cardsdb"
+	"github.com/pitchstack-gg/pitchstack-cli/internal/paths"
 	"github.com/urfave/cli/v3"
 )
 
@@ -32,255 +34,285 @@ func newCardsCommand() *cli.Command {
 	}
 }
 
-func newCardsBatchGetCommand() *cli.Command {
-	return newSDKCommand("batch-get", "Batch get cards", []cli.Flag{
-		repeatedIDsFlag("id", "Card ID (repeatable or comma-separated)"),
-		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
-	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCardsRequest) error {
-		if cmd.IsSet("id") {
-			req.CardIDs = splitCSV(cmd.StringSlice("id"))
+func localCardsFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.BoolFlag{Name: "refresh", Usage: "Force refresh the local card database before running"},
+		&cli.BoolFlag{Name: "offline", Usage: "Use only the cached local card database"},
+		&cli.StringFlag{Name: "cards-db-url", Usage: "Remote gzipped SQLite card database URL"},
+		&cli.StringFlag{Name: "cards-db-last-updated-url", Usage: "Remote LAST_PUBLISHED freshness URL"},
+	}
+}
+
+func appendLocalCardsFlags(flags ...cli.Flag) []cli.Flag {
+	out := make([]cli.Flag, 0, len(localCardsFlags())+len(flags))
+	out = append(out, localCardsFlags()...)
+	out = append(out, flags...)
+	return out
+}
+
+func withLocalCardsRepo(ctx context.Context, cmd *cli.Command, fn func(*cardsdb.Repository, string, *cardsdb.Metadata) (any, error)) error {
+	st, err := getState(ctx)
+	if err != nil {
+		return err
+	}
+	dbURL := strings.TrimSpace(cmd.String("cards-db-url"))
+	if dbURL == "" {
+		dbURL = strings.TrimSpace(st.Profile.CardsDBURL)
+	}
+	if dbURL == "" {
+		dbURL = cardsdb.DefaultCardsDBURL
+	}
+	lastUpdatedURL := strings.TrimSpace(cmd.String("cards-db-last-updated-url"))
+	if lastUpdatedURL == "" {
+		lastUpdatedURL = strings.TrimSpace(st.Profile.CardsDBLastUpdatedURL)
+	}
+	if lastUpdatedURL == "" {
+		lastUpdatedURL = cardsdb.DefaultCardsDBLastUpdatedURL
+	}
+	refreshInterval := cardsdb.DefaultRefreshInterval
+	if raw := strings.TrimSpace(st.Profile.CardsDBRefreshInterval); raw != "" {
+		parsed, err := time.ParseDuration(raw)
+		if err != nil {
+			return cli.Exit(fmt.Sprintf("cardsDbRefreshInterval must be a duration: %s", err.Error()), 2)
 		}
-		if cmd.IsSet("allow-partial") {
-			req.AllowPartial = cmd.Bool("allow-partial")
-		}
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetCardsRequest) (any, error) {
-		return c.BatchGetCards(ctx, req)
+		refreshInterval = parsed
+	}
+	autoRefresh := true
+	if st.Profile.CardsDBAutoRefresh != nil {
+		autoRefresh = *st.Profile.CardsDBAutoRefresh
+	}
+
+	manager := &cardsdb.Manager{
+		DBPath:         paths.CardsDBPath(st.ProfileName),
+		MetaPath:       paths.CardsDBMetaPath(st.ProfileName),
+		DBURL:          dbURL,
+		LastUpdatedURL: lastUpdatedURL,
+		OnStatus: func(status cardsdb.Status) {
+			switch status.Phase {
+			case "checking", "downloading", "installing", "outdated":
+				_, _ = fmt.Fprintln(cmd.ErrWriter, status.Message)
+			}
+		},
+	}
+	ensure, err := manager.Ensure(ctx, cardsdb.EnsureOptions{
+		Force:           cmd.Bool("refresh"),
+		Offline:         cmd.Bool("offline"),
+		AutoRefresh:     &autoRefresh,
+		RefreshInterval: refreshInterval,
 	})
+	if err != nil {
+		return err
+	}
+	if ensure.Outdated {
+		_, _ = fmt.Fprintf(cmd.ErrWriter, "warning: local card database is out of date; run this command with --refresh to update it\n")
+	}
+	repo, err := cardsdb.OpenRepository(ensure.DBPath)
+	if err != nil {
+		return err
+	}
+	defer repo.Close()
+	resp, err := fn(repo, ensure.DBPath, ensure.Meta)
+	if err != nil {
+		return err
+	}
+	return writeJSON(cmd.Writer, resp)
 }
 
 func newCardsSearchCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "search",
-		Usage: "Search cards",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "q", Usage: "Search term"},
-			&cli.StringFlag{Name: "class", Usage: "Class filter"},
-			&cli.StringFlag{Name: "type", Usage: "Type filter"},
-			&cli.StringFlag{Name: "subtype", Usage: "Subtype filter"},
-			&cli.StringFlag{Name: "talent", Usage: "Talent filter"},
-			&cli.StringFlag{Name: "cost", Usage: "Cost filter"},
-			&cli.StringFlag{Name: "defense", Usage: "Defense filter"},
-			&cli.StringFlag{Name: "pitch", Usage: "Pitch filter"},
-			&cli.StringFlag{Name: "power", Usage: "Power filter"},
-			&cli.StringFlag{Name: "health", Usage: "Health filter"},
-			&cli.StringFlag{Name: "intelligence", Usage: "Intelligence filter"},
-			&cli.StringFlag{Name: "arcane", Usage: "Arcane filter"},
-			&cli.StringFlag{Name: "color-identity", Usage: "Color identity filter (e.g. COLOR_IDENTITY_RED)"},
-			&cli.BoolFlag{Name: "is-double-faced", Usage: "Filter by double-faced cards"},
-
-			&cli.BoolFlag{Name: "blitz-legal", Usage: "Blitz legality filter"},
-			&cli.BoolFlag{Name: "blitz-banned", Usage: "Blitz banned filter"},
-			&cli.BoolFlag{Name: "blitz-suspended", Usage: "Blitz suspended filter"},
-			&cli.BoolFlag{Name: "blitz-living-legend", Usage: "Blitz living legend filter"},
-			&cli.BoolFlag{Name: "cc-legal", Usage: "Classic Constructed legality filter"},
-			&cli.BoolFlag{Name: "cc-banned", Usage: "Classic Constructed banned filter"},
-			&cli.BoolFlag{Name: "cc-suspended", Usage: "Classic Constructed suspended filter"},
-			&cli.BoolFlag{Name: "cc-living-legend", Usage: "Classic Constructed living legend filter"},
-			&cli.BoolFlag{Name: "commoner-legal", Usage: "Commoner legality filter"},
-			&cli.BoolFlag{Name: "commoner-banned", Usage: "Commoner banned filter"},
-			&cli.BoolFlag{Name: "commoner-suspended", Usage: "Commoner suspended filter"},
-			&cli.BoolFlag{Name: "upf-banned", Usage: "UPF banned filter"},
-			&cli.BoolFlag{Name: "ll-banned", Usage: "Living Legend format banned filter"},
-			&cli.BoolFlag{Name: "ll-restricted", Usage: "Living Legend format restricted filter"},
-			&cli.BoolFlag{Name: "project-blue-legal", Usage: "Project Blue legality filter"},
-			&cli.BoolFlag{Name: "project-blue-banned", Usage: "Project Blue banned filter"},
-			&cli.BoolFlag{Name: "project-blue-suspended", Usage: "Project Blue suspended filter"},
-
+		Name:      "search",
+		Usage:     "Search cards",
+		ArgsUsage: "[query]",
+		Flags: appendLocalCardsFlags(
+			&cli.StringFlag{Name: "q", Aliases: []string{"query"}, Usage: "Search query using Pitchstack card syntax"},
+			&cli.StringFlag{Name: "class", Aliases: []string{"c"}, Usage: "Deprecated: use class:<value> in --q"},
+			&cli.StringFlag{Name: "type", Aliases: []string{"t"}, Usage: "Deprecated: use type:<value> in --q"},
+			&cli.StringFlag{Name: "subtype", Aliases: []string{"st"}, Usage: "Deprecated: use subtype:<value> in --q"},
+			&cli.StringFlag{Name: "talent", Aliases: []string{"tal"}, Usage: "Deprecated: use talent:<value> in --q"},
+			&cli.StringFlag{Name: "keyword", Aliases: []string{"kw"}, Usage: "Deprecated: use keyword:<value> in --q"},
+			&cli.StringFlag{Name: "artist", Aliases: []string{"art"}, Usage: "Deprecated: use artist:<value> in --q"},
+			&cli.StringFlag{Name: "set", Aliases: []string{"s"}, Usage: "Deprecated: use set:<value> in --q"},
+			&cli.StringFlag{Name: "rarity", Aliases: []string{"r"}, Usage: "Deprecated: use rarity:<value> in --q"},
+			&cli.StringFlag{Name: "language", Aliases: []string{"lang"}, Usage: "Deprecated: use lang:<value> in --q"},
+			&cli.StringFlag{Name: "cost", Aliases: []string{"co"}, Usage: "Deprecated: use cost:<value> in --q"},
+			&cli.StringFlag{Name: "defense", Aliases: []string{"def", "d", "block", "b"}, Usage: "Deprecated: use defense:<value> in --q"},
+			&cli.StringFlag{Name: "pitch", Aliases: []string{"p"}, Usage: "Deprecated: use pitch:<value> in --q"},
+			&cli.StringFlag{Name: "power", Aliases: []string{"pow", "pwr", "attack"}, Usage: "Deprecated: use power:<value> in --q"},
+			&cli.StringFlag{Name: "health", Aliases: []string{"life", "li", "hp"}, Usage: "Deprecated: use life:<value> in --q"},
+			&cli.StringFlag{Name: "intelligence", Aliases: []string{"intellect", "i"}, Usage: "Deprecated: use intellect:<value> in --q"},
+			&cli.StringFlag{Name: "arcane", Usage: "Deprecated: use arcane:<value> in --q"},
+			&cli.StringFlag{Name: "color-identity", Aliases: []string{"color", "colour"}, Usage: "Deprecated: use color:<red|yellow|blue|none> in --q"},
+			&cli.BoolFlag{Name: "is-double-faced", Aliases: []string{"double", "double-faced"}, Usage: "Deprecated: use double:<true|false> in --q"},
+			&cli.BoolFlag{Name: "blitz-legal", Usage: "Deprecated: use legal:blitz in --q"},
+			&cli.BoolFlag{Name: "blitz-banned", Usage: "Deprecated: use banned:blitz in --q"},
+			&cli.BoolFlag{Name: "blitz-suspended", Usage: "Deprecated: use suspended:blitz in --q"},
+			&cli.BoolFlag{Name: "blitz-living-legend", Usage: "Deprecated: use livinglegend:blitz in --q"},
+			&cli.BoolFlag{Name: "cc-legal", Usage: "Deprecated: use legal:cc in --q"},
+			&cli.BoolFlag{Name: "cc-banned", Usage: "Deprecated: use banned:cc in --q"},
+			&cli.BoolFlag{Name: "cc-suspended", Usage: "Deprecated: use suspended:cc in --q"},
+			&cli.BoolFlag{Name: "cc-living-legend", Usage: "Deprecated: use livinglegend:cc in --q"},
+			&cli.BoolFlag{Name: "commoner-legal", Usage: "Deprecated: use legal:commoner in --q"},
+			&cli.BoolFlag{Name: "commoner-banned", Usage: "Deprecated: use banned:commoner in --q"},
+			&cli.BoolFlag{Name: "commoner-suspended", Usage: "Deprecated: use suspended:commoner in --q"},
+			&cli.BoolFlag{Name: "upf-banned", Usage: "Deprecated: use banned:upf in --q"},
+			&cli.BoolFlag{Name: "ll-banned", Usage: "Deprecated: use banned:ll in --q"},
+			&cli.BoolFlag{Name: "ll-restricted", Usage: "Deprecated: use restricted:ll in --q"},
+			&cli.BoolFlag{Name: "project-blue-legal", Usage: "Deprecated: use legal:projectblue in --q"},
+			&cli.BoolFlag{Name: "project-blue-banned", Usage: "Deprecated: use banned:projectblue in --q"},
+			&cli.BoolFlag{Name: "project-blue-suspended", Usage: "Deprecated: use suspended:projectblue in --q"},
 			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
 			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
-		},
+		),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
+			query := strings.TrimSpace(cmd.String("q"))
+			if query == "" {
+				query = strings.TrimSpace(cmd.Args().First())
 			}
-
-			req := &clientv1.SearchCardsRequest{
-				SearchTerm:           strings.TrimSpace(cmd.String("q")),
-				Class:                strings.TrimSpace(cmd.String("class")),
-				Type:                 strings.TrimSpace(cmd.String("type")),
-				Subtype:              strings.TrimSpace(cmd.String("subtype")),
-				Talent:               strings.TrimSpace(cmd.String("talent")),
-				Cost:                 strings.TrimSpace(cmd.String("cost")),
-				Defense:              strings.TrimSpace(cmd.String("defense")),
-				Pitch:                strings.TrimSpace(cmd.String("pitch")),
-				Power:                strings.TrimSpace(cmd.String("power")),
-				Health:               strings.TrimSpace(cmd.String("health")),
-				Intelligence:         strings.TrimSpace(cmd.String("intelligence")),
-				Arcane:               strings.TrimSpace(cmd.String("arcane")),
-				ColorIdentity:        strings.TrimSpace(cmd.String("color-identity")),
-				BlitzLegal:           boolPtr(cmd, "blitz-legal"),
-				BlitzBanned:          boolPtr(cmd, "blitz-banned"),
-				BlitzSuspended:       boolPtr(cmd, "blitz-suspended"),
-				BlitzLivingLegend:    boolPtr(cmd, "blitz-living-legend"),
-				CCLegal:              boolPtr(cmd, "cc-legal"),
-				CCBanned:             boolPtr(cmd, "cc-banned"),
-				CCSuspended:          boolPtr(cmd, "cc-suspended"),
-				CCLivingLegend:       boolPtr(cmd, "cc-living-legend"),
-				CommonerLegal:        boolPtr(cmd, "commoner-legal"),
-				CommonerBanned:       boolPtr(cmd, "commoner-banned"),
-				CommonerSuspended:    boolPtr(cmd, "commoner-suspended"),
-				UPFBanned:            boolPtr(cmd, "upf-banned"),
-				LLBanned:             boolPtr(cmd, "ll-banned"),
-				LLRestricted:         boolPtr(cmd, "ll-restricted"),
-				ProjectBlueLegal:     boolPtr(cmd, "project-blue-legal"),
-				ProjectBlueBanned:    boolPtr(cmd, "project-blue-banned"),
-				ProjectBlueSuspended: boolPtr(cmd, "project-blue-suspended"),
-				IsDoubleFaced:        boolPtr(cmd, "is-double-faced"),
-				NextToken:            strings.TrimSpace(cmd.String("next-token")),
+			params := cardsdb.ParseCardSearchQuery(query)
+			applySearchFlagOverrides(cmd, &params)
+			if !hasCardSearchCriteria(params) {
+				return fmt.Errorf("cards search requires a query or at least one filter")
 			}
-			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
-				ps := int32(cmd.Int("page-size"))
-				req.PageSize = &ps
-			}
-
-			resp, err := st.Service.SearchCards(ctx, req)
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.SearchCards(ctx, params)
+			})
 		},
 	}
 }
 
-func newCardsPrintingsBatchCommand() *cli.Command {
-	return newSDKCommand("printings-batch", "Batch get printings", []cli.Flag{
-		repeatedIDsFlag("id", "Printing ID (repeatable or comma-separated)"),
-		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
-	}, true, func(cmd *cli.Command, req *clientv1.BatchGetPrintingsRequest) error {
-		if cmd.IsSet("id") {
-			req.PrintingIDs = splitCSV(cmd.StringSlice("id"))
+func hasCardSearchCriteria(params cardsdb.SearchCardsParams) bool {
+	if strings.TrimSpace(params.SearchTerm) != "" ||
+		strings.TrimSpace(params.Class) != "" ||
+		strings.TrimSpace(params.Type) != "" ||
+		strings.TrimSpace(params.Subtype) != "" ||
+		strings.TrimSpace(params.Talent) != "" ||
+		strings.TrimSpace(params.Keyword) != "" ||
+		strings.TrimSpace(params.Cost) != "" ||
+		strings.TrimSpace(params.Defense) != "" ||
+		strings.TrimSpace(params.Pitch) != "" ||
+		strings.TrimSpace(params.Power) != "" ||
+		strings.TrimSpace(params.Health) != "" ||
+		strings.TrimSpace(params.Intelligence) != "" ||
+		strings.TrimSpace(params.Arcane) != "" ||
+		strings.TrimSpace(params.ColorIdentity) != "" ||
+		strings.TrimSpace(params.Artist) != "" ||
+		strings.TrimSpace(params.SetCode) != "" ||
+		strings.TrimSpace(params.Rarity) != "" ||
+		strings.TrimSpace(params.Language) != "" {
+		return true
+	}
+	return params.BlitzLegal != nil ||
+		params.BlitzBanned != nil ||
+		params.BlitzSuspended != nil ||
+		params.BlitzLivingLegend != nil ||
+		params.CCLegal != nil ||
+		params.CCBanned != nil ||
+		params.CCSuspended != nil ||
+		params.CCLivingLegend != nil ||
+		params.CommonerLegal != nil ||
+		params.CommonerBanned != nil ||
+		params.CommonerSuspended != nil ||
+		params.UPFBanned != nil ||
+		params.LLBanned != nil ||
+		params.LLRestricted != nil ||
+		params.ProjectBlueLegal != nil ||
+		params.ProjectBlueBanned != nil ||
+		params.ProjectBlueSuspended != nil ||
+		params.IsDoubleFaced != nil
+}
+
+func applySearchFlagOverrides(cmd *cli.Command, params *cardsdb.SearchCardsParams) {
+	setString := func(flag string, dst *string) {
+		if cmd.IsSet(flag) {
+			*dst = strings.TrimSpace(cmd.String(flag))
 		}
-		if cmd.IsSet("allow-partial") {
-			req.AllowPartial = cmd.Bool("allow-partial")
-		}
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetPrintingsRequest) (any, error) {
-		return c.BatchGetPrintings(ctx, req)
-	})
+	}
+	setString("class", &params.Class)
+	setString("type", &params.Type)
+	setString("subtype", &params.Subtype)
+	setString("talent", &params.Talent)
+	setString("keyword", &params.Keyword)
+	setString("artist", &params.Artist)
+	setString("set", &params.SetCode)
+	setString("rarity", &params.Rarity)
+	setString("language", &params.Language)
+	setString("cost", &params.Cost)
+	setString("defense", &params.Defense)
+	setString("pitch", &params.Pitch)
+	setString("power", &params.Power)
+	setString("health", &params.Health)
+	setString("intelligence", &params.Intelligence)
+	setString("arcane", &params.Arcane)
+	setString("color-identity", &params.ColorIdentity)
+	if cmd.IsSet("page-size") {
+		params.PageSize = cmd.Int("page-size")
+	}
+	if cmd.IsSet("next-token") {
+		params.NextToken = strings.TrimSpace(cmd.String("next-token"))
+	}
+	params.BlitzLegal = boolPtr(cmd, "blitz-legal")
+	params.BlitzBanned = boolPtr(cmd, "blitz-banned")
+	params.BlitzSuspended = boolPtr(cmd, "blitz-suspended")
+	params.BlitzLivingLegend = boolPtr(cmd, "blitz-living-legend")
+	params.CCLegal = boolPtr(cmd, "cc-legal")
+	params.CCBanned = boolPtr(cmd, "cc-banned")
+	params.CCSuspended = boolPtr(cmd, "cc-suspended")
+	params.CCLivingLegend = boolPtr(cmd, "cc-living-legend")
+	params.CommonerLegal = boolPtr(cmd, "commoner-legal")
+	params.CommonerBanned = boolPtr(cmd, "commoner-banned")
+	params.CommonerSuspended = boolPtr(cmd, "commoner-suspended")
+	params.UPFBanned = boolPtr(cmd, "upf-banned")
+	params.LLBanned = boolPtr(cmd, "ll-banned")
+	params.LLRestricted = boolPtr(cmd, "ll-restricted")
+	params.ProjectBlueLegal = boolPtr(cmd, "project-blue-legal")
+	params.ProjectBlueBanned = boolPtr(cmd, "project-blue-banned")
+	params.ProjectBlueSuspended = boolPtr(cmd, "project-blue-suspended")
+	params.IsDoubleFaced = boolPtr(cmd, "is-double-faced")
+}
+
+func newCardsBatchGetCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "batch-get",
+		Usage: "Batch get cards",
+		Flags: appendLocalCardsFlags(
+			repeatedIDsFlag("id", "Card ID (repeatable or comma-separated)"),
+			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			ids := splitCSV(cmd.StringSlice("id"))
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.BatchGetCardSummaries(ctx, ids)
+			})
+		},
+	}
 }
 
 func newCardsGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
 		Usage: "Get a card",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Usage: "Card ID", Required: true},
-		},
+		Flags: appendLocalCardsFlags(&cli.StringFlag{Name: "id", Usage: "Card ID", Required: true}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-			resp, err := st.Service.GetCard(ctx, &clientv1.GetCardRequest{CardID: strings.TrimSpace(cmd.String("id"))})
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.GetCardSummary(ctx, strings.TrimSpace(cmd.String("id")))
+			})
 		},
 	}
-}
-
-func newCardsProductsCommand() *cli.Command {
-	return newSDKCommand("products", "List products", append(pageFlags(),
-		&cli.StringFlag{Name: "type", Usage: "Product type"},
-		&cli.StringFlag{Name: "set-code", Usage: "Set code"},
-		&cli.StringFlag{Name: "product-group-id", Usage: "Product group ID"},
-		&cli.StringFlag{Name: "card-id", Usage: "Card ID"},
-		&cli.StringFlag{Name: "printing-id", Usage: "Printing ID"},
-	), true, func(cmd *cli.Command, req *clientv1.ListProductsRequest) error {
-		setStringFlag(cmd, "type", &req.Type)
-		setStringFlag(cmd, "set-code", &req.SetCode)
-		setStringFlag(cmd, "product-group-id", &req.ProductGroupID)
-		setStringFlag(cmd, "card-id", &req.CardID)
-		setStringFlag(cmd, "printing-id", &req.PrintingID)
-		setPageFlags(cmd, &req.PageSize, &req.NextToken)
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListProductsRequest) (any, error) {
-		return c.ListProducts(ctx, req)
-	})
-}
-
-func newCardsProductsBatchCommand() *cli.Command {
-	return newSDKCommand("products-batch", "Batch get products", []cli.Flag{
-		repeatedIDsFlag("id", "Product ID (repeatable or comma-separated)"),
-		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
-	}, true, func(cmd *cli.Command, req *clientv1.BatchGetProductsRequest) error {
-		if cmd.IsSet("id") {
-			req.ProductIDs = splitCSV(cmd.StringSlice("id"))
-		}
-		if cmd.IsSet("allow-partial") {
-			req.AllowPartial = cmd.Bool("allow-partial")
-		}
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetProductsRequest) (any, error) {
-		return c.BatchGetProducts(ctx, req)
-	})
-}
-
-func newCardsSetCommand() *cli.Command {
-	return newSDKCommand("set", "Get a set", []cli.Flag{&cli.StringFlag{Name: "code", Usage: "Set code"}}, true, func(cmd *cli.Command, req *clientv1.GetSetRequest) error {
-		setStringFlag(cmd, "code", &req.SetCode)
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetSetRequest) (any, error) {
-		return c.GetSet(ctx, req)
-	})
-}
-
-func newCardsSetsCommand() *cli.Command {
-	return newSDKCommand("sets", "List sets", pageFlags(), true, func(cmd *cli.Command, req *clientv1.ListSetsRequest) error {
-		setPageFlags(cmd, &req.PageSize, &req.NextToken)
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListSetsRequest) (any, error) {
-		return c.ListSets(ctx, req)
-	})
-}
-
-func newCardsSetsBatchCommand() *cli.Command {
-	return newSDKCommand("sets-batch", "Batch get sets", []cli.Flag{
-		repeatedIDsFlag("code", "Set code (repeatable or comma-separated)"),
-		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
-	}, true, func(cmd *cli.Command, req *clientv1.BatchGetSetsRequest) error {
-		if cmd.IsSet("code") {
-			req.SetCodes = splitCSV(cmd.StringSlice("code"))
-		}
-		if cmd.IsSet("allow-partial") {
-			req.AllowPartial = cmd.Bool("allow-partial")
-		}
-		return nil
-	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetSetsRequest) (any, error) {
-		return c.BatchGetSets(ctx, req)
-	})
 }
 
 func newCardsPrintingsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "printings",
 		Usage: "List printings for a card",
-		Flags: []cli.Flag{
+		Flags: appendLocalCardsFlags(
 			&cli.StringFlag{Name: "card-id", Usage: "Card ID", Required: true},
 			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
 			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
-		},
+		),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-			req := &clientv1.ListPrintingsRequest{
-				CardID:    strings.TrimSpace(cmd.String("card-id")),
-				NextToken: strings.TrimSpace(cmd.String("next-token")),
-			}
-			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
-				ps := int32(cmd.Int("page-size"))
-				req.PageSize = &ps
-			}
-			resp, err := st.Service.ListPrintings(ctx, req)
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.ListPrintingSummaries(ctx, strings.TrimSpace(cmd.String("card-id")), cmd.Int("page-size"), strings.TrimSpace(cmd.String("next-token")))
+			})
 		},
 	}
 }
@@ -289,19 +321,28 @@ func newCardsPrintingCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "printing",
 		Usage: "Get a printing",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Usage: "Printing ID", Required: true},
-		},
+		Flags: appendLocalCardsFlags(&cli.StringFlag{Name: "id", Usage: "Printing ID", Required: true}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-			resp, err := st.Service.GetPrinting(ctx, &clientv1.GetPrintingRequest{PrintingID: strings.TrimSpace(cmd.String("id"))})
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.GetPrintingSummary(ctx, strings.TrimSpace(cmd.String("id")))
+			})
+		},
+	}
+}
+
+func newCardsPrintingsBatchCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "printings-batch",
+		Usage: "Batch get printings",
+		Flags: appendLocalCardsFlags(
+			repeatedIDsFlag("id", "Printing ID (repeatable or comma-separated)"),
+			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			ids := splitCSV(cmd.StringSlice("id"))
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.BatchGetPrintingSummaries(ctx, ids)
+			})
 		},
 	}
 }
@@ -310,19 +351,41 @@ func newCardsPrintingsSetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "printings-set",
 		Usage: "List printings for a set number",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "set-number", Usage: "Set number", Required: true},
-		},
+		Flags: appendLocalCardsFlags(&cli.StringFlag{Name: "set-number", Usage: "Set number", Required: true}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.ListPrintingsForSetNumber(ctx, strings.TrimSpace(cmd.String("set-number")))
+			})
+		},
+	}
+}
+
+func newCardsProductsCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "products",
+		Usage: "List products",
+		Flags: appendLocalCardsFlags(
+			&cli.StringFlag{Name: "type", Usage: "Product type"},
+			&cli.StringFlag{Name: "set-code", Usage: "Set code"},
+			&cli.StringFlag{Name: "product-group-id", Usage: "Product group ID"},
+			&cli.StringFlag{Name: "card-id", Usage: "Card ID"},
+			&cli.StringFlag{Name: "printing-id", Usage: "Printing ID"},
+			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
+			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			params := cardsdb.ListProductsParams{
+				Type:           strings.TrimSpace(cmd.String("type")),
+				SetCode:        strings.TrimSpace(cmd.String("set-code")),
+				ProductGroupID: strings.TrimSpace(cmd.String("product-group-id")),
+				CardID:         strings.TrimSpace(cmd.String("card-id")),
+				PrintingID:     strings.TrimSpace(cmd.String("printing-id")),
+				PageSize:       cmd.Int("page-size"),
+				NextToken:      strings.TrimSpace(cmd.String("next-token")),
 			}
-			resp, err := st.Service.ListPrintingsForSetNumber(ctx, &clientv1.ListPrintingsForSetNumberRequest{SetNumber: strings.TrimSpace(cmd.String("set-number"))})
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.ListProductSummaries(ctx, params)
+			})
 		},
 	}
 }
@@ -331,19 +394,74 @@ func newCardsProductCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "product",
 		Usage: "Get a product",
-		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Usage: "Product ID", Required: true},
-		},
+		Flags: appendLocalCardsFlags(&cli.StringFlag{Name: "id", Usage: "Product ID", Required: true}),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-			resp, err := st.Service.GetProduct(ctx, &clientv1.GetProductRequest{ProductID: strings.TrimSpace(cmd.String("id"))})
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.GetProductSummary(ctx, strings.TrimSpace(cmd.String("id")))
+			})
+		},
+	}
+}
+
+func newCardsProductsBatchCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "products-batch",
+		Usage: "Batch get products",
+		Flags: appendLocalCardsFlags(
+			repeatedIDsFlag("id", "Product ID (repeatable or comma-separated)"),
+			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			ids := splitCSV(cmd.StringSlice("id"))
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.BatchGetProductSummaries(ctx, ids)
+			})
+		},
+	}
+}
+
+func newCardsSetCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "set",
+		Usage: "Get a set",
+		Flags: appendLocalCardsFlags(&cli.StringFlag{Name: "code", Usage: "Set code", Required: true}),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.GetSetSummary(ctx, strings.TrimSpace(cmd.String("code")))
+			})
+		},
+	}
+}
+
+func newCardsSetsCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "sets",
+		Usage: "List sets",
+		Flags: appendLocalCardsFlags(
+			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
+			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.ListSetSummaries(ctx, cmd.Int("page-size"), strings.TrimSpace(cmd.String("next-token")))
+			})
+		},
+	}
+}
+
+func newCardsSetsBatchCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "sets-batch",
+		Usage: "Batch get sets",
+		Flags: appendLocalCardsFlags(
+			repeatedIDsFlag("code", "Set code (repeatable or comma-separated)"),
+			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
+		),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			codes := splitCSV(cmd.StringSlice("code"))
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, _ string, _ *cardsdb.Metadata) (any, error) {
+				return repo.BatchGetSetSummaries(ctx, codes)
+			})
 		},
 	}
 }
@@ -351,33 +469,15 @@ func newCardsProductCommand() *cli.Command {
 func newCardsSnapshotCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "snapshot",
-		Usage: "Get data snapshot metadata",
-		Flags: []cli.Flag{
-			&cli.IntFlag{Name: "schema-version", Usage: "Schema version"},
-			&cli.StringFlag{Name: "version", Usage: "Snapshot version override"},
-		},
+		Usage: "Get local card database metadata",
+		Flags: appendLocalCardsFlags(
+			&cli.IntFlag{Name: "schema-version", Usage: "Ignored compatibility flag"},
+			&cli.StringFlag{Name: "version", Usage: "Ignored compatibility flag"},
+		),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := getState(ctx)
-			if err != nil {
-				return err
-			}
-			req := &clientv1.GetDataSnapshotRequest{
-				Version: strings.TrimSpace(cmd.String("version")),
-			}
-			if cmd.IsSet("schema-version") {
-				v := cmd.Int("schema-version")
-				if v < 0 {
-					return cli.Exit("--schema-version must be >= 0", 2)
-				}
-				vs := int32(v)
-				req.SchemaVersion = &vs
-			}
-
-			resp, err := st.Service.GetDataSnapshot(ctx, req)
-			if err != nil {
-				return err
-			}
-			return writeJSON(cmd.Writer, resp)
+			return withLocalCardsRepo(ctx, cmd, func(repo *cardsdb.Repository, dbPath string, meta *cardsdb.Metadata) (any, error) {
+				return repo.Snapshot(dbPath, meta), nil
+			})
 		},
 	}
 }

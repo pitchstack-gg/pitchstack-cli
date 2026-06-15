@@ -15,13 +15,15 @@ type Config struct {
 }
 
 type Profile struct {
-	BaseURL               string `json:"baseUrl,omitempty"`
-	OAuthBaseURL          string `json:"oauthBaseUrl,omitempty"`
-	TimeoutSeconds        int    `json:"timeoutSeconds,omitempty"`
-	CardsDBURL            string `json:"cardsDbUrl,omitempty"`
-	CardsDBLastUpdatedURL string `json:"cardsDbLastUpdatedUrl,omitempty"`
-	PowerSyncURL          string `json:"powerSyncUrl,omitempty"`
-	SyncEnabled           *bool  `json:"syncEnabled,omitempty"`
+	BaseURL                string `json:"baseUrl,omitempty"`
+	OAuthBaseURL           string `json:"oauthBaseUrl,omitempty"`
+	TimeoutSeconds         int    `json:"timeoutSeconds,omitempty"`
+	CardsDBURL             string `json:"cardsDbUrl,omitempty"`
+	CardsDBLastUpdatedURL  string `json:"cardsDbLastUpdatedUrl,omitempty"`
+	CardsDBRefreshInterval string `json:"cardsDbRefreshInterval,omitempty"`
+	CardsDBAutoRefresh     *bool  `json:"cardsDbAutoRefresh,omitempty"`
+	PowerSyncURL           string `json:"powerSyncUrl,omitempty"`
+	SyncEnabled            *bool  `json:"syncEnabled,omitempty"`
 }
 
 type Deps struct {
@@ -35,11 +37,12 @@ func Default() *Config {
 		CurrentProfile: "default",
 		Profiles: map[string]Profile{
 			"default": {
-				BaseURL:               "https://api.pitchstack.gg",
-				OAuthBaseURL:          "https://auth.pitchstack.gg",
-				TimeoutSeconds:        30,
-				CardsDBURL:            "https://cards.pitchstack.gg/pitchstack/pitchstack.sqlite.gz",
-				CardsDBLastUpdatedURL: "https://cards.pitchstack.gg/pitchstack/LAST_PUBLISHED",
+				BaseURL:                "https://api.pitchstack.gg",
+				OAuthBaseURL:           "https://auth.pitchstack.gg",
+				TimeoutSeconds:         30,
+				CardsDBURL:             "https://cards.pitchstack.gg/pitchstack/pitchstack.sqlite.gz",
+				CardsDBLastUpdatedURL:  "https://cards.pitchstack.gg/pitchstack/LAST_PUBLISHED",
+				CardsDBRefreshInterval: "1h",
 			},
 		},
 	}
@@ -96,6 +99,9 @@ func Load(path string) (*Config, error) {
 			}
 			if strings.TrimSpace(prof.CardsDBLastUpdatedURL) == "" {
 				prof.CardsDBLastUpdatedURL = defProf.CardsDBLastUpdatedURL
+			}
+			if strings.TrimSpace(prof.CardsDBRefreshInterval) == "" {
+				prof.CardsDBRefreshInterval = defProf.CardsDBRefreshInterval
 			}
 			cfg.Profiles[name] = prof
 		}

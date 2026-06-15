@@ -18,6 +18,7 @@ import (
 const (
 	DefaultCardsDBURL            = "https://cards.pitchstack.gg/pitchstack/pitchstack.sqlite.gz"
 	DefaultCardsDBLastUpdatedURL = "https://cards.pitchstack.gg/pitchstack/LAST_PUBLISHED"
+	DefaultRefreshInterval       = time.Hour
 )
 
 type Status struct {
@@ -29,6 +30,9 @@ type Metadata struct {
 	ETag            string    `json:"etag,omitempty"`
 	LastModified    string    `json:"lastModified,omitempty"`
 	FetchedAt       time.Time `json:"fetchedAt,omitempty"`
+	LastCheckedAt   time.Time `json:"lastCheckedAt,omitempty"`
+	LastCheckError  string    `json:"lastCheckError,omitempty"`
+	KnownOutdatedAt time.Time `json:"knownOutdatedAt,omitempty"`
 	LastPublishedAt time.Time `json:"lastPublishedAt,omitempty"`
 	InstalledAt     time.Time `json:"installedAt,omitempty"`
 }
@@ -43,14 +47,18 @@ type Manager struct {
 }
 
 type EnsureOptions struct {
-	Force   bool
-	Offline bool
+	Force           bool
+	Offline         bool
+	AutoRefresh     *bool
+	RefreshInterval time.Duration
 }
 
 type EnsureResult struct {
-	DBPath  string
-	Meta    *Metadata
-	Updated bool
+	DBPath            string
+	Meta              *Metadata
+	Updated           bool
+	Outdated          bool
+	LatestPublishedAt time.Time
 }
 
 func (m *Manager) Ensure(ctx context.Context, opts EnsureOptions) (*EnsureResult, error) {
@@ -63,6 +71,7 @@ func (m *Manager) Ensure(ctx context.Context, opts EnsureOptions) (*EnsureResult
 
 	meta, _ := m.loadMeta()
 	hasDB := fileExists(m.DBPath)
+	now := time.Now().UTC()
 	if opts.Offline {
 		if !hasDB {
 			return nil, fmt.Errorf("cards database not installed at %s; rerun without --offline first", m.DBPath)
@@ -75,16 +84,62 @@ func (m *Manager) Ensure(ctx context.Context, opts EnsureOptions) (*EnsureResult
 	if dbURL == "" {
 		dbURL = DefaultCardsDBURL
 	}
+	refreshInterval := opts.RefreshInterval
+	if refreshInterval <= 0 {
+		refreshInterval = DefaultRefreshInterval
+	}
+	autoRefresh := true
+	if opts.AutoRefresh != nil {
+		autoRefresh = *opts.AutoRefresh
+	}
+
+	if hasDB && !opts.Force && refreshInterval > 0 && meta != nil && !meta.LastCheckedAt.IsZero() && now.Sub(meta.LastCheckedAt) < refreshInterval {
+		m.status("ready", "Using cached card database.")
+		return &EnsureResult{DBPath: m.DBPath, Meta: meta, Updated: false}, nil
+	}
+
+	if hasDB && !opts.Force && strings.TrimSpace(m.LastUpdatedURL) == "" {
+		m.status("ready", "Using cached card database.")
+		return &EnsureResult{DBPath: m.DBPath, Meta: meta, Updated: false}, nil
+	}
 
 	var latestPublishedAt time.Time
 	if strings.TrimSpace(m.LastUpdatedURL) != "" {
 		m.status("checking", "Checking card database freshness...")
 		if latest, err := m.fetchLastPublished(ctx); err == nil {
 			latestPublishedAt = latest
+			if meta == nil {
+				meta = &Metadata{}
+			}
+			meta.LastCheckedAt = now
+			meta.LastCheckError = ""
 			if hasDB && !opts.Force && !latest.IsZero() && meta != nil && !meta.LastPublishedAt.IsZero() && !latest.After(meta.LastPublishedAt) {
+				meta.KnownOutdatedAt = time.Time{}
+				if err := m.saveMeta(meta); err != nil {
+					return nil, err
+				}
 				m.status("ready", "Card database is up to date.")
 				return &EnsureResult{DBPath: m.DBPath, Meta: meta, Updated: false}, nil
 			}
+			if hasDB && !opts.Force && !autoRefresh && !latest.IsZero() && (meta.LastPublishedAt.IsZero() || latest.After(meta.LastPublishedAt)) {
+				meta.KnownOutdatedAt = latest
+				if err := m.saveMeta(meta); err != nil {
+					return nil, err
+				}
+				m.status("outdated", "Card database update is available.")
+				return &EnsureResult{DBPath: m.DBPath, Meta: meta, Updated: false, Outdated: true, LatestPublishedAt: latest}, nil
+			}
+		} else if hasDB && !opts.Force {
+			if meta == nil {
+				meta = &Metadata{}
+			}
+			meta.LastCheckedAt = now
+			meta.LastCheckError = err.Error()
+			if err := m.saveMeta(meta); err != nil {
+				return nil, err
+			}
+			m.status("ready", "Using cached card database after freshness check failed.")
+			return &EnsureResult{DBPath: m.DBPath, Meta: meta, Updated: false}, nil
 		}
 	}
 
@@ -92,6 +147,12 @@ func (m *Manager) Ensure(ctx context.Context, opts EnsureOptions) (*EnsureResult
 	downloaded, nextMeta, notModified, err := m.download(ctx, dbURL, meta, opts.Force)
 	if err != nil {
 		if hasDB {
+			if meta != nil {
+				meta.LastCheckedAt = now
+				if err := m.saveMeta(meta); err != nil {
+					return nil, err
+				}
+			}
 			m.status("ready", "Using cached card database after refresh failed.")
 			return &EnsureResult{DBPath: m.DBPath, Meta: meta, Updated: false}, nil
 		}
@@ -104,6 +165,9 @@ func (m *Manager) Ensure(ctx context.Context, opts EnsureOptions) (*EnsureResult
 		if !latestPublishedAt.IsZero() {
 			meta.LastPublishedAt = latestPublishedAt
 		}
+		meta.LastCheckedAt = now
+		meta.LastCheckError = ""
+		meta.KnownOutdatedAt = time.Time{}
 		if err := m.saveMeta(meta); err != nil {
 			return nil, err
 		}
@@ -118,8 +182,10 @@ func (m *Manager) Ensure(ctx context.Context, opts EnsureOptions) (*EnsureResult
 	if !latestPublishedAt.IsZero() {
 		nextMeta.LastPublishedAt = latestPublishedAt
 	}
-	now := time.Now().UTC()
 	nextMeta.InstalledAt = now
+	nextMeta.LastCheckedAt = now
+	nextMeta.LastCheckError = ""
+	nextMeta.KnownOutdatedAt = time.Time{}
 	if nextMeta.FetchedAt.IsZero() {
 		nextMeta.FetchedAt = now
 	}

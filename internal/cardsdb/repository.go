@@ -18,40 +18,60 @@ type Repository struct {
 }
 
 type Features struct {
-	HasCards                     bool
-	HasCardCores                 bool
-	HasCardSearchProjection      bool
-	HasOpenNameFTS               bool
-	HasOpenRulesFTS              bool
-	HasOpenTextFTS               bool
-	HasPrintings                 bool
-	HasPrintingFaces             bool
-	HasSets                      bool
-	HasCardReferences            bool
-	HasCardPitchSiblings         bool
-	HasProductProjection         bool
-	HasCardLegalityJSON          bool
-	HasReferencesJSON            bool
-	HasReferencedByJSON          bool
-	HasPitchSiblingsJSON         bool
-	HasProjectionImageSmall      bool
-	HasProjectionImageNormal     bool
-	HasProjectionImageLarge      bool
-	HasProjectionImageCrop       bool
-	HasProjectionImageCropSmall  bool
-	HasProjectionImageCropMedium bool
-	HasProjectionImageCropXlarge bool
-	HasProjectionImageCropColor  bool
-	HasProjectionClassesJSON     bool
-	HasProjectionTalentsJSON     bool
-	HasProjectionTypesJSON       bool
-	HasProjectionSubtypesJSON    bool
-	HasProjectionKeywordsJSON    bool
-	HasPrintingImageCrop         bool
-	HasPrintingImageCropSmall    bool
-	HasPrintingImageCropMedium   bool
-	HasPrintingImageCropXlarge   bool
-	HasPrintingRulesText         bool
+	HasCards                         bool
+	HasCardCores                     bool
+	HasCardSearchProjection          bool
+	HasOpenNameFTS                   bool
+	HasOpenRulesFTS                  bool
+	HasOpenTextFTS                   bool
+	HasPrintings                     bool
+	HasPrintingFaces                 bool
+	HasSets                          bool
+	HasCardReferences                bool
+	HasCardPitchSiblings             bool
+	HasCardCoreClasses               bool
+	HasCardCoreTypes                 bool
+	HasCardCoreSubtypes              bool
+	HasCardCoreTalents               bool
+	HasCardCoreClassNorm             bool
+	HasCardCoreTypeNorm              bool
+	HasCardCoreSubtypeNorm           bool
+	HasCardCoreTalentNorm            bool
+	HasCardKeywords                  bool
+	HasCardKeywordNorm               bool
+	HasCardLegalities                bool
+	HasProductProjection             bool
+	HasProducts                      bool
+	HasProductGroups                 bool
+	HasCardLegalityJSON              bool
+	HasReferencesJSON                bool
+	HasReferencedByJSON              bool
+	HasPitchSiblingsJSON             bool
+	HasProjectionImageSmall          bool
+	HasProjectionImageNormal         bool
+	HasProjectionImageLarge          bool
+	HasProjectionImageCrop           bool
+	HasProjectionImageCropSmall      bool
+	HasProjectionImageCropMedium     bool
+	HasProjectionImageCropXlarge     bool
+	HasProjectionImageCropColor      bool
+	HasProjectionClassesJSON         bool
+	HasProjectionTalentsJSON         bool
+	HasProjectionTypesJSON           bool
+	HasProjectionSubtypesJSON        bool
+	HasProjectionKeywordsJSON        bool
+	HasProjectionColor               bool
+	HasProjectionColorNorm           bool
+	HasProjectionPreferredPrintingID bool
+	HasProjectionBlitzLegal          bool
+	HasProjectionCCLegal             bool
+	HasProjectionCommonerLegal       bool
+	HasProjectionProjectBlueLegal    bool
+	HasPrintingImageCrop             bool
+	HasPrintingImageCropSmall        bool
+	HasPrintingImageCropMedium       bool
+	HasPrintingImageCropXlarge       bool
+	HasPrintingRulesText             bool
 }
 
 type SearchParams struct {
@@ -439,41 +459,96 @@ func (r *Repository) detectFeatures(ctx context.Context) (Features, error) {
 			return Features{}, err
 		}
 	}
+	coreClassColumns := map[string]bool{}
+	if names["card_core_classes"] {
+		coreClassColumns, err = r.columnNames(ctx, "card_core_classes")
+		if err != nil {
+			return Features{}, err
+		}
+	}
+	coreTypeColumns := map[string]bool{}
+	if names["card_core_types"] {
+		coreTypeColumns, err = r.columnNames(ctx, "card_core_types")
+		if err != nil {
+			return Features{}, err
+		}
+	}
+	coreSubtypeColumns := map[string]bool{}
+	if names["card_core_subtypes"] {
+		coreSubtypeColumns, err = r.columnNames(ctx, "card_core_subtypes")
+		if err != nil {
+			return Features{}, err
+		}
+	}
+	coreTalentColumns := map[string]bool{}
+	if names["card_core_talents"] {
+		coreTalentColumns, err = r.columnNames(ctx, "card_core_talents")
+		if err != nil {
+			return Features{}, err
+		}
+	}
+	keywordColumns := map[string]bool{}
+	if names["card_keywords"] {
+		keywordColumns, err = r.columnNames(ctx, "card_keywords")
+		if err != nil {
+			return Features{}, err
+		}
+	}
 	return Features{
-		HasCards:                     names["cards"],
-		HasCardCores:                 names["card_cores"],
-		HasCardSearchProjection:      names["card_search_projection"],
-		HasOpenNameFTS:               names["open_name_fts"],
-		HasOpenRulesFTS:              names["open_rules_fts"],
-		HasOpenTextFTS:               names["open_text_fts"],
-		HasPrintings:                 names["printings"],
-		HasPrintingFaces:             names["printing_faces"],
-		HasSets:                      names["sets"],
-		HasCardReferences:            names["card_references"],
-		HasCardPitchSiblings:         names["card_pitch_siblings"],
-		HasProductProjection:         names["product_projection"],
-		HasCardLegalityJSON:          cardColumns["card_legality_json"],
-		HasReferencesJSON:            cardColumns["references_json"],
-		HasReferencedByJSON:          cardColumns["referenced_by_json"],
-		HasPitchSiblingsJSON:         cardColumns["pitch_siblings_json"],
-		HasProjectionImageSmall:      projectionColumns["image_small"],
-		HasProjectionImageNormal:     projectionColumns["image_normal"],
-		HasProjectionImageLarge:      projectionColumns["image_large"],
-		HasProjectionImageCrop:       projectionColumns["image_crop"],
-		HasProjectionImageCropSmall:  projectionColumns["image_crop_small"],
-		HasProjectionImageCropMedium: projectionColumns["image_crop_medium"],
-		HasProjectionImageCropXlarge: projectionColumns["image_crop_xlarge"],
-		HasProjectionImageCropColor:  projectionColumns["image_crop_primary_color"],
-		HasProjectionClassesJSON:     projectionColumns["classes_json"],
-		HasProjectionTalentsJSON:     projectionColumns["talents_json"],
-		HasProjectionTypesJSON:       projectionColumns["types_json"],
-		HasProjectionSubtypesJSON:    projectionColumns["subtypes_json"],
-		HasProjectionKeywordsJSON:    projectionColumns["keywords_json"],
-		HasPrintingImageCrop:         printingFaceColumns["image_crop"],
-		HasPrintingImageCropSmall:    printingFaceColumns["image_crop_small"],
-		HasPrintingImageCropMedium:   printingFaceColumns["image_crop_medium"],
-		HasPrintingImageCropXlarge:   printingFaceColumns["image_crop_xlarge"],
-		HasPrintingRulesText:         printingFaceColumns["rules_text"],
+		HasCards:                         names["cards"],
+		HasCardCores:                     names["card_cores"],
+		HasCardSearchProjection:          names["card_search_projection"],
+		HasOpenNameFTS:                   names["open_name_fts"],
+		HasOpenRulesFTS:                  names["open_rules_fts"],
+		HasOpenTextFTS:                   names["open_text_fts"],
+		HasPrintings:                     names["printings"],
+		HasPrintingFaces:                 names["printing_faces"],
+		HasSets:                          names["sets"],
+		HasCardReferences:                names["card_references"],
+		HasCardPitchSiblings:             names["card_pitch_siblings"],
+		HasCardCoreClasses:               names["card_core_classes"] && coreClassColumns["class"],
+		HasCardCoreTypes:                 names["card_core_types"] && coreTypeColumns["type"],
+		HasCardCoreSubtypes:              names["card_core_subtypes"] && coreSubtypeColumns["subtype"],
+		HasCardCoreTalents:               names["card_core_talents"] && coreTalentColumns["talent"],
+		HasCardCoreClassNorm:             coreClassColumns["class_norm"],
+		HasCardCoreTypeNorm:              coreTypeColumns["type_norm"],
+		HasCardCoreSubtypeNorm:           coreSubtypeColumns["subtype_norm"],
+		HasCardCoreTalentNorm:            coreTalentColumns["talent_norm"],
+		HasCardKeywords:                  names["card_keywords"] && keywordColumns["keyword"],
+		HasCardKeywordNorm:               keywordColumns["keyword_norm"],
+		HasCardLegalities:                names["card_legalities"],
+		HasProductProjection:             names["product_projection"],
+		HasProducts:                      names["products"],
+		HasProductGroups:                 names["product_groups"],
+		HasCardLegalityJSON:              cardColumns["card_legality_json"],
+		HasReferencesJSON:                cardColumns["references_json"],
+		HasReferencedByJSON:              cardColumns["referenced_by_json"],
+		HasPitchSiblingsJSON:             cardColumns["pitch_siblings_json"],
+		HasProjectionImageSmall:          projectionColumns["image_small"],
+		HasProjectionImageNormal:         projectionColumns["image_normal"],
+		HasProjectionImageLarge:          projectionColumns["image_large"],
+		HasProjectionImageCrop:           projectionColumns["image_crop"],
+		HasProjectionImageCropSmall:      projectionColumns["image_crop_small"],
+		HasProjectionImageCropMedium:     projectionColumns["image_crop_medium"],
+		HasProjectionImageCropXlarge:     projectionColumns["image_crop_xlarge"],
+		HasProjectionImageCropColor:      projectionColumns["image_crop_primary_color"],
+		HasProjectionClassesJSON:         projectionColumns["classes_json"],
+		HasProjectionTalentsJSON:         projectionColumns["talents_json"],
+		HasProjectionTypesJSON:           projectionColumns["types_json"],
+		HasProjectionSubtypesJSON:        projectionColumns["subtypes_json"],
+		HasProjectionKeywordsJSON:        projectionColumns["keywords_json"],
+		HasProjectionColor:               projectionColumns["color"],
+		HasProjectionColorNorm:           projectionColumns["color_norm"],
+		HasProjectionPreferredPrintingID: projectionColumns["preferred_printing_id"],
+		HasProjectionBlitzLegal:          projectionColumns["is_blitz_legal"],
+		HasProjectionCCLegal:             projectionColumns["is_classic_constructed_legal"],
+		HasProjectionCommonerLegal:       projectionColumns["is_commoner_legal"],
+		HasProjectionProjectBlueLegal:    projectionColumns["is_silver_age_legal"],
+		HasPrintingImageCrop:             printingFaceColumns["image_crop"],
+		HasPrintingImageCropSmall:        printingFaceColumns["image_crop_small"],
+		HasPrintingImageCropMedium:       printingFaceColumns["image_crop_medium"],
+		HasPrintingImageCropXlarge:       printingFaceColumns["image_crop_xlarge"],
+		HasPrintingRulesText:             printingFaceColumns["rules_text"],
 	}, nil
 }
 
