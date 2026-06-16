@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/pitchstack-gg/pitchstack-cli/internal/buildinfo"
 	"github.com/pitchstack-gg/pitchstack-cli/internal/paths"
 
 	"github.com/urfave/cli/v3"
@@ -34,33 +35,42 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 				OnlyOnce: true,
 			},
 		},
-		Commands: []*cli.Command{
-			newLoginCommand(),
-			newAuthCommand(),
-			newSignupCommand(),
-			newWhoamiCommand(),
-			newLogoutCommand(),
-			newTUICommand(),
-			newProfileCommand(),
-			newActivityCommand(),
-			newCardsCommand(),
-			newCollectionsCommand(),
-			newDecksCommand(),
-			newGroupsCommand(),
-			newSocialCommand(),
-			newEngagementCommand(),
-			newEventsCommand(),
-			newPricingCommand(),
-			newNewsCommand(),
-			newNotificationsCommand(),
-			newPullsCommand(),
-			newConfigCommand(),
-			newVersionCommand(),
-		},
+		Commands: rootCommands(),
 	}
 
 	inheritIO(cmd, stdin, stdout, stderr)
 	return cmd
+}
+
+func rootCommands() []*cli.Command {
+	commands := []*cli.Command{
+		newLoginCommand(),
+		newAuthCommand(),
+		newSignupCommand(),
+		newWhoamiCommand(),
+		newLogoutCommand(),
+	}
+	if buildinfo.IsDevelopment() {
+		commands = append(commands, newTUICommand())
+	}
+	commands = append(commands,
+		newProfileCommand(),
+		newActivityCommand(),
+		newCardsCommand(),
+		newCollectionsCommand(),
+		newDecksCommand(),
+		newGroupsCommand(),
+		newSocialCommand(),
+		newEngagementCommand(),
+		newEventsCommand(),
+		newPricingCommand(),
+		newNewsCommand(),
+		newNotificationsCommand(),
+		newPullsCommand(),
+		newConfigCommand(),
+		newVersionCommand(),
+	)
+	return commands
 }
 
 func inheritIO(cmd *cli.Command, stdin io.Reader, stdout io.Writer, stderr io.Writer) {

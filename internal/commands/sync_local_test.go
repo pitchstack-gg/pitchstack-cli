@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pitchstack-gg/pitchstack-cli/internal/buildinfo"
 	"github.com/pitchstack-gg/pitchstack-cli/internal/paths"
 	"github.com/pitchstack-gg/pitchstack-cli/internal/powersync"
 	"github.com/pitchstack-gg/pitchstack-cli/internal/session"
@@ -65,6 +66,21 @@ func TestTUICommandHelpIncludesTabFlag(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), "--tab") {
 		t.Fatalf("help output missing --tab:\n%s", stdout.String())
+	}
+}
+
+func TestTUICommandIsHiddenForReleaseBuilds(t *testing.T) {
+	previousVersion := buildinfo.Version
+	buildinfo.Version = "0.1.3"
+	t.Cleanup(func() {
+		buildinfo.Version = previousVersion
+	})
+
+	root := NewRootCommand(strings.NewReader(""), io.Discard, io.Discard)
+	for _, command := range root.Commands {
+		if command.Name == "tui" {
+			t.Fatalf("tui command should not be exposed for release builds")
+		}
 	}
 }
 
