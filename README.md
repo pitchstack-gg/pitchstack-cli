@@ -26,6 +26,37 @@ sudo install -m 0755 pitchstack /usr/local/bin/pitchstack
 pitchstack version
 ```
 
+Nix users can run the CLI directly:
+
+```sh
+nix run github:pitchstack-gg/pitchstack-cli -- version
+```
+
+Or add it to a flake-based NixOS configuration:
+
+```nix
+{
+  inputs.pitchstack-cli.url = "github:pitchstack-gg/pitchstack-cli";
+
+  outputs = {nixpkgs, pitchstack-cli, ...}: {
+    nixosConfigurations.example = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ({pkgs, ...}: {
+          environment.systemPackages = [
+            pitchstack-cli.packages.${pkgs.system}.default
+          ];
+        })
+      ];
+    };
+  };
+}
+```
+
+For Home Manager, put the same package in `home.packages`.
+
+The flake also exposes `overlays.default`, `packages.<system>.pitchstack`, and `apps.<system>.pitchstack`.
+
 Update by running the install command again. Uninstall by removing the installed binary, for example:
 
 ```sh
