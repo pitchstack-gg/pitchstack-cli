@@ -173,6 +173,138 @@ func TestResourceTrendingCommandsSendScopedTypes(t *testing.T) {
 	}
 }
 
+func TestCardsTrendingCommandFormatsEnrichedItems(t *testing.T) {
+	viewedAt := time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/engagement/trending:list" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Errorf("decode body: %v", err)
+			http.Error(w, "bad body", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"resources": [{
+				"resource": {"resourceType": "TRACKABLE_RESOURCE_TYPE_CARD", "resourceId": "card-alpha"},
+				"viewCount": "19",
+				"score": 17.40220361395269,
+				"lastViewedAt": ` + quoteJSON(viewedAt) + `
+			}],
+			"nextPageToken": "next"
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	cfgPath := setupCommandTestProfile(t, server.URL)
+	installSimpleCommandCardsDB(t, paths.CardsDBPath("test"))
+
+	var stdout, stderr bytes.Buffer
+	root := NewRootCommand(strings.NewReader(""), &stdout, &stderr)
+	err := root.Run(context.Background(), []string{
+		"pitchstack", "--config", cfgPath, "--profile", "test",
+		"cards", "trending", "--offline", "--window", "24h",
+	})
+	if err != nil {
+		t.Fatalf("run command: %v; stderr=%s", err, stderr.String())
+	}
+
+	if gotBody["resourceType"] != "TRACKABLE_RESOURCE_TYPE_CARD" {
+		t.Fatalf("resourceType = %#v, want card request; body=%#v", gotBody["resourceType"], gotBody)
+	}
+
+	var got struct {
+		ResourceType  string `json:"resourceType"`
+		Window        string `json:"window"`
+		NextPageToken string `json:"nextPageToken"`
+		Items         []struct {
+			Rank          int     `json:"rank"`
+			ResourceType  string  `json:"resourceType"`
+			ResourceID    string  `json:"resourceId"`
+			ViewCount     int64   `json:"viewCount"`
+			Score         float64 `json:"score"`
+			LastViewedAt  string  `json:"lastViewedAt"`
+			LastViewedAgo string  `json:"lastViewedAgo"`
+			Card          *struct {
+				ID              string   `json:"id"`
+				Name            string   `json:"name"`
+				Types           []string `json:"types"`
+				Cost            string   `json:"cost"`
+				Pitch           string   `json:"pitch"`
+				Power           string   `json:"power"`
+				Defense         string   `json:"defense"`
+				DefaultImageURL string   `json:"defaultImageUrl"`
+			} `json:"card"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode stdout %q: %v", stdout.String(), err)
+	}
+	if got.ResourceType != "card" || got.Window != "24h" || got.NextPageToken != "next" {
+		t.Fatalf("output metadata = %#v; stdout=%s", got, stdout.String())
+	}
+	if len(got.Items) != 1 {
+		t.Fatalf("items len = %d, want 1; stdout=%s", len(got.Items), stdout.String())
+	}
+	item := got.Items[0]
+	if item.Rank != 1 || item.ResourceType != "card" || item.ResourceID != "card-alpha" {
+		t.Fatalf("item identity = %#v; stdout=%s", item, stdout.String())
+	}
+	if item.ViewCount != 19 || item.Score != 17.4022 || item.LastViewedAt != viewedAt || item.LastViewedAgo == "" {
+		t.Fatalf("item metrics = %#v; stdout=%s", item, stdout.String())
+	}
+	if item.Card == nil || item.Card.ID != "card-alpha" || item.Card.Name != "Alpha Strike" {
+		t.Fatalf("card summary = %#v; stdout=%s", item.Card, stdout.String())
+	}
+	if item.Card.Cost != "1" || item.Card.Pitch != "2" || item.Card.Power != "3" || item.Card.Defense != "2" {
+		t.Fatalf("card stats = %#v; stdout=%s", item.Card, stdout.String())
+	}
+}
+
+func TestCardsTrendingCommandRawPrintsAPIShape(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/engagement/trending:list" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"resources": [{
+				"resource": {"resourceType": "TRACKABLE_RESOURCE_TYPE_CARD", "resourceId": "card-alpha"},
+				"viewCount": 2,
+				"score": 1.5
+			}]
+		}`))
+	}))
+	t.Cleanup(server.Close)
+
+	cfgPath := setupCommandTestProfile(t, server.URL)
+	var stdout, stderr bytes.Buffer
+	root := NewRootCommand(strings.NewReader(""), &stdout, &stderr)
+	err := root.Run(context.Background(), []string{
+		"pitchstack", "--config", cfgPath, "--profile", "test",
+		"cards", "trending", "--raw",
+	})
+	if err != nil {
+		t.Fatalf("run command: %v; stderr=%s", err, stderr.String())
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
+		t.Fatalf("decode stdout %q: %v", stdout.String(), err)
+	}
+	if _, ok := got["items"]; ok {
+		t.Fatalf("raw output should not include formatted items: %s", stdout.String())
+	}
+	resources, _ := got["resources"].([]any)
+	if len(resources) != 1 {
+		t.Fatalf("resources = %#v, want raw API resources; stdout=%s", resources, stdout.String())
+	}
+}
+
 func writeTestConfigAndSession(t *testing.T, baseURL string) string {
 	t.Helper()
 

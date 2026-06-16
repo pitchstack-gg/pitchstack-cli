@@ -54,9 +54,22 @@ func appendLocalCardsFlags(flags ...cli.Flag) []cli.Flag {
 }
 
 func withLocalCardsRepo(ctx context.Context, cmd *cli.Command, fn func(*cardsdb.Repository, string, *cardsdb.Metadata) (any, error)) error {
-	st, err := getState(ctx)
+	repo, dbPath, meta, err := openLocalCardsRepo(ctx, cmd)
 	if err != nil {
 		return err
+	}
+	defer repo.Close()
+	resp, err := fn(repo, dbPath, meta)
+	if err != nil {
+		return err
+	}
+	return writeJSON(cmd.Writer, resp)
+}
+
+func openLocalCardsRepo(ctx context.Context, cmd *cli.Command) (*cardsdb.Repository, string, *cardsdb.Metadata, error) {
+	st, err := getState(ctx)
+	if err != nil {
+		return nil, "", nil, err
 	}
 	dbURL := strings.TrimSpace(cmd.String("cards-db-url"))
 	if dbURL == "" {
@@ -76,7 +89,7 @@ func withLocalCardsRepo(ctx context.Context, cmd *cli.Command, fn func(*cardsdb.
 	if raw := strings.TrimSpace(st.Profile.CardsDBRefreshInterval); raw != "" {
 		parsed, err := time.ParseDuration(raw)
 		if err != nil {
-			return cli.Exit(fmt.Sprintf("cardsDbRefreshInterval must be a duration: %s", err.Error()), 2)
+			return nil, "", nil, cli.Exit(fmt.Sprintf("cardsDbRefreshInterval must be a duration: %s", err.Error()), 2)
 		}
 		refreshInterval = parsed
 	}
@@ -104,21 +117,16 @@ func withLocalCardsRepo(ctx context.Context, cmd *cli.Command, fn func(*cardsdb.
 		RefreshInterval: refreshInterval,
 	})
 	if err != nil {
-		return err
+		return nil, "", nil, err
 	}
 	if ensure.Outdated {
 		_, _ = fmt.Fprintf(cmd.ErrWriter, "warning: local card database is out of date; run this command with --refresh to update it\n")
 	}
 	repo, err := cardsdb.OpenRepository(ensure.DBPath)
 	if err != nil {
-		return err
+		return nil, "", nil, err
 	}
-	defer repo.Close()
-	resp, err := fn(repo, ensure.DBPath, ensure.Meta)
-	if err != nil {
-		return err
-	}
-	return writeJSON(cmd.Writer, resp)
+	return repo, ensure.DBPath, ensure.Meta, nil
 }
 
 func newCardsSearchCommand() *cli.Command {
