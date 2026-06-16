@@ -8,6 +8,7 @@ import (
 
 	"github.com/pitchstack-gg/pitchstack-cli/internal/cardsdb"
 	"github.com/pitchstack-gg/pitchstack-cli/internal/paths"
+	clientv1 "github.com/pitchstack-gg/pitchstack-go/client/v1"
 	"github.com/urfave/cli/v3"
 )
 
@@ -30,6 +31,7 @@ func newCardsCommand() *cli.Command {
 			newCardsSetsCommand(),
 			newCardsSetsBatchCommand(),
 			newCardsSnapshotCommand(),
+			newResourceTrendingCommand("cards", clientv1.TrackableResourceTypeCard),
 		},
 	}
 }

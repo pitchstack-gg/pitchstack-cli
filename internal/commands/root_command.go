@@ -61,7 +61,6 @@ func rootCommands() []*cli.Command {
 		newDecksCommand(),
 		newGroupsCommand(),
 		newSocialCommand(),
-		newEngagementCommand(),
 		newEventsCommand(),
 		newPricingCommand(),
 		newNewsCommand(),

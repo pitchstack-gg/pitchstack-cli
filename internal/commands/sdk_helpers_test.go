@@ -119,7 +119,7 @@ func TestUploadFileToSignedURL_PutsBytesAndHeaders(t *testing.T) {
 func TestNewCommandGroupsExposeHelp(t *testing.T) {
 	t.Parallel()
 
-	groups := []string{"groups", "social", "engagement", "events", "pricing", "news", "notifications", "pulls"}
+	groups := []string{"groups", "social", "events", "pricing", "news", "notifications", "pulls"}
 	for _, group := range groups {
 		t.Run(group, func(t *testing.T) {
 			t.Parallel()
