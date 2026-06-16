@@ -116,6 +116,74 @@ func TestUploadFileToSignedURL_PutsBytesAndHeaders(t *testing.T) {
 	}
 }
 
+func TestAuthLoginPrintsCLISessionSecret(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/auth/cli/sessions":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"sessionId":           "sess-1",
+				"sessionSecret":       "secret-1",
+				"verificationPath":    "/v1/auth/cli/sessions/sess-1/login",
+				"pollIntervalSeconds": 1,
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/auth/cli/sessions/sess-1:poll":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if strings.TrimSpace(body["sessionSecret"].(string)) != "secret-1" {
+				http.Error(w, "bad secret", http.StatusUnauthorized)
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "CLI_LOGIN_SESSION_STATUS_COMPLETE",
+				"login": map[string]any{
+					"userId":               "user-1",
+					"accessToken":          "at-1",
+					"refreshToken":         "rt-1",
+					"accessTokenExpiresAt": time.Now().Add(time.Hour).UTC().Format(time.RFC3339),
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	cfg := `{"currentProfile":"test","profiles":{"test":{"baseUrl":` + quoteJSON(server.URL) + `,"oauthBaseUrl":` + quoteJSON(server.URL) + `,"timeoutSeconds":5}}}`
+	if err := os.WriteFile(cfgPath, []byte(cfg), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	root := NewRootCommand(strings.NewReader(""), &stdout, &stderr)
+	err := root.Run(context.Background(), []string{
+		"pitchstack", "--config", cfgPath, "--profile", "test",
+		"auth", "login", "--no-open", "--timeout", "5s",
+	})
+	if err != nil {
+		t.Fatalf("run command: %v", err)
+	}
+	errText := stderr.String()
+	if !strings.Contains(errText, server.URL+"/v1/auth/cli/sessions/sess-1/login") {
+		t.Fatalf("stderr did not include verification URL; stderr=%q", errText)
+	}
+	if !strings.Contains(errText, "#session_secret=secret-1") {
+		t.Fatalf("stderr did not include session secret fragment; stderr=%q", errText)
+	}
+	if !strings.Contains(errText, "Session secret to enter in the browser:\nsecret-1\n") {
+		t.Fatalf("stderr did not include session secret; stderr=%q", errText)
+	}
+	if !strings.Contains(stdout.String(), "logged in (user-1)") {
+		t.Fatalf("stdout did not include login result; stdout=%q", stdout.String())
+	}
+}
+
 func TestRootCommandGroupsExposeConsolidatedHelp(t *testing.T) {
 	t.Parallel()
 

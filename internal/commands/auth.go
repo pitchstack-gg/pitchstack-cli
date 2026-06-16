@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -55,17 +56,20 @@ func newLoginCommand() *cli.Command {
 				if err != nil {
 					return err
 				}
+				verificationURL := verificationURLWithSessionSecret(sess.VerificationURL, sess.SessionSecret)
 
 				if !cmd.Bool("no-open") {
-					if err := openBrowser(sess.VerificationURL); err != nil {
+					if err := openBrowser(verificationURL); err != nil {
 						_, _ = fmt.Fprintf(cmd.ErrWriter, "failed to open browser: %s\n", err.Error())
 						_, _ = fmt.Fprintln(cmd.ErrWriter, "Complete login in your browser:")
-						_, _ = fmt.Fprintln(cmd.ErrWriter, sess.VerificationURL)
+						_, _ = fmt.Fprintln(cmd.ErrWriter, verificationURL)
 					}
 				} else {
 					_, _ = fmt.Fprintln(cmd.ErrWriter, "Complete login in your browser:")
-					_, _ = fmt.Fprintln(cmd.ErrWriter, sess.VerificationURL)
+					_, _ = fmt.Fprintln(cmd.ErrWriter, verificationURL)
 				}
+				_, _ = fmt.Fprintln(cmd.ErrWriter, "Session secret to enter in the browser:")
+				_, _ = fmt.Fprintln(cmd.ErrWriter, sess.SessionSecret)
 
 				pollCtx, cancel := context.WithTimeout(ctx, timeout)
 				defer cancel()
@@ -158,6 +162,25 @@ func newLoginCommand() *cli.Command {
 			return err
 		},
 	}
+}
+
+func verificationURLWithSessionSecret(rawURL string, sessionSecret string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	sessionSecret = strings.TrimSpace(sessionSecret)
+	if rawURL == "" || sessionSecret == "" {
+		return rawURL
+	}
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	fragment := url.Values{"session_secret": []string{sessionSecret}}.Encode()
+	if strings.TrimSpace(u.Fragment) != "" {
+		fragment = u.Fragment + "&" + fragment
+	}
+	u.Fragment = fragment
+	return u.String()
 }
 
 func openBrowser(url string) error {
