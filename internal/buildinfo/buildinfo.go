@@ -8,6 +8,10 @@ var (
 )
 
 func IsDevelopment() bool {
-	version := strings.TrimSpace(Version)
+	return IsDevelopmentVersion(Version)
+}
+
+func IsDevelopmentVersion(version string) bool {
+	version = strings.TrimSpace(version)
 	return version == "" || strings.EqualFold(version, "dev")
 }

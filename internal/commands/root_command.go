@@ -18,7 +18,7 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 		Reader:                 stdin,
 		Writer:                 stdout,
 		ErrWriter:              stderr,
-		Before:                 loadState,
+		Before:                 beforeRootCommand,
 		ExitErrHandler:         func(context.Context, *cli.Command, error) {},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -61,9 +61,19 @@ func rootCommands() []*cli.Command {
 		newSocialCommand(),
 		newPullsCommand(),
 		newConfigCommand(),
+		newUpdateCommand(),
 		newVersionCommand(),
 	)
 	return commands
+}
+
+func beforeRootCommand(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+	ctx, err := loadState(ctx, cmd)
+	if err != nil {
+		return ctx, err
+	}
+	maybePrintUpdateNotice(ctx, cmd)
+	return ctx, nil
 }
 
 func hiddenCommand(cmd *cli.Command) *cli.Command {

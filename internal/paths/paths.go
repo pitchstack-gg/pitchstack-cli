@@ -78,3 +78,7 @@ func SyncDBPath(profileName string) string {
 func SyncMetaPath(profileName string) string {
 	return filepath.Join(SyncCacheDir(profileName), "meta.json")
 }
+
+func UpdateCheckCachePath() string {
+	return filepath.Join(appCacheDir(), "update-check.json")
+}

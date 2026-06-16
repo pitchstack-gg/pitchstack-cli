@@ -187,7 +187,7 @@ func TestAuthLoginPrintsCLISessionSecret(t *testing.T) {
 func TestRootCommandGroupsExposeConsolidatedHelp(t *testing.T) {
 	t.Parallel()
 
-	groups := []string{"auth", "me", "social", "cards", "collections", "decks", "pulls", "config", "version"}
+	groups := []string{"auth", "me", "social", "cards", "collections", "decks", "pulls", "config", "update", "version"}
 	for _, group := range groups {
 		t.Run(group, func(t *testing.T) {
 			t.Parallel()

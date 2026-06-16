@@ -57,7 +57,19 @@ For Home Manager, put the same package in `home.packages`.
 
 The flake also exposes `overlays.default`, `packages.<system>.pitchstack`, and `apps.<system>.pitchstack`.
 
-Update by running the install command again. Uninstall by removing the installed binary, for example:
+Update with:
+
+```sh
+pitchstack update
+```
+
+The CLI also checks for newer GitHub releases during normal use and prints a notice when an update is available. To only check without installing:
+
+```sh
+pitchstack update --check
+```
+
+You can still update by running the install command again. Uninstall by removing the installed binary, for example:
 
 ```sh
 sudo rm -f /usr/local/bin/pitchstack
