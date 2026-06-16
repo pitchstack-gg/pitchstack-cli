@@ -41,6 +41,19 @@ func newNotificationsCommand() *cli.Command {
 	}
 }
 
+func newMeNotificationsCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "notifications",
+		Usage: "Manage your notifications",
+		Commands: []*cli.Command{
+			newPushDevicesCommand(),
+			newNotificationPreferencesCommand(),
+			newNotificationTopicsCommand(),
+			newInboxCommand(),
+		},
+	}
+}
+
 func newPushDevicesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "devices",

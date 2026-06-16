@@ -31,6 +31,7 @@ func newCardsCommand() *cli.Command {
 			newCardsSetsCommand(),
 			newCardsSetsBatchCommand(),
 			newCardsSnapshotCommand(),
+			newCardsPricesCommand(),
 			newResourceTrendingCommand("cards", clientv1.TrackableResourceTypeCard),
 		},
 	}

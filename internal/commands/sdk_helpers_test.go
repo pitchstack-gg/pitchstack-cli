@@ -17,7 +17,7 @@ import (
 	"github.com/pitchstack-gg/pitchstack-cli/internal/session"
 )
 
-func TestPricingBatchCommand_FileStdinAndFlagOverride(t *testing.T) {
+func TestCardsPricesBatchCommand_FileStdinAndFlagOverride(t *testing.T) {
 	var gotAuth string
 	var gotBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +59,7 @@ func TestPricingBatchCommand_FileStdinAndFlagOverride(t *testing.T) {
 	root := NewRootCommand(strings.NewReader(`{"productIds":["from-file"],"source":"file-source"}`), &stdout, io.Discard)
 	err := root.Run(context.Background(), []string{
 		"pitchstack", "--config", cfgPath, "--profile", "test",
-		"pricing", "batch", "--file", "-", "--product-id", "from-flag", "--source", "flag-source",
+		"cards", "prices", "batch", "--file", "-", "--product-id", "from-flag", "--source", "flag-source",
 	})
 	if err != nil {
 		t.Fatalf("run command: %v", err)
@@ -116,10 +116,10 @@ func TestUploadFileToSignedURL_PutsBytesAndHeaders(t *testing.T) {
 	}
 }
 
-func TestNewCommandGroupsExposeHelp(t *testing.T) {
+func TestRootCommandGroupsExposeConsolidatedHelp(t *testing.T) {
 	t.Parallel()
 
-	groups := []string{"groups", "social", "events", "pricing", "news", "notifications", "pulls"}
+	groups := []string{"auth", "me", "social", "cards", "collections", "decks", "pulls", "config", "version"}
 	for _, group := range groups {
 		t.Run(group, func(t *testing.T) {
 			t.Parallel()
@@ -132,6 +132,54 @@ func TestNewCommandGroupsExposeHelp(t *testing.T) {
 				t.Fatalf("help output for %q did not mention command; output=%q", group, stdout.String())
 			}
 		})
+	}
+}
+
+func TestRemovedRootCommandGroupsAreNotExposed(t *testing.T) {
+	t.Parallel()
+
+	groups := []string{"profile", "activity", "groups", "events", "pricing", "news", "notifications"}
+	for _, group := range groups {
+		t.Run(group, func(t *testing.T) {
+			t.Parallel()
+			root := NewRootCommand(strings.NewReader(""), io.Discard, io.Discard)
+			if err := root.Run(context.Background(), []string{"pitchstack", group, "--help"}); err == nil {
+				t.Fatalf("%q should not be available at root", group)
+			}
+		})
+	}
+}
+
+func TestAuthCanonicalCommandsAndHiddenRootShortcuts(t *testing.T) {
+	t.Parallel()
+
+	for _, args := range [][]string{
+		{"pitchstack", "auth", "login", "--help"},
+		{"pitchstack", "auth", "signup", "--help"},
+		{"pitchstack", "auth", "whoami", "--help"},
+		{"pitchstack", "auth", "logout", "--help"},
+		{"pitchstack", "login", "--help"},
+		{"pitchstack", "signup", "--help"},
+		{"pitchstack", "whoami", "--help"},
+		{"pitchstack", "logout", "--help"},
+	} {
+		var stdout bytes.Buffer
+		root := NewRootCommand(strings.NewReader(""), &stdout, io.Discard)
+		if err := root.Run(context.Background(), args); err != nil {
+			t.Fatalf("%v help failed: %v", args, err)
+		}
+	}
+
+	var stdout bytes.Buffer
+	root := NewRootCommand(strings.NewReader(""), &stdout, io.Discard)
+	if err := root.Run(context.Background(), []string{"pitchstack", "--help"}); err != nil {
+		t.Fatalf("root help failed: %v", err)
+	}
+	help := stdout.String()
+	for _, hidden := range []string{"login", "signup", "whoami", "logout"} {
+		if strings.Contains(help, "\n   "+hidden+" ") {
+			t.Fatalf("%q should be hidden from root help; output=%q", hidden, help)
+		}
 	}
 }
 

@@ -14,6 +14,10 @@ func newAuthCommand() *cli.Command {
 		Name:  "auth",
 		Usage: "Manage authentication",
 		Commands: []*cli.Command{
+			newLoginCommand(),
+			newSignupCommand(),
+			newWhoamiCommand(),
+			newLogoutCommand(),
 			newAuthStatusCommand(),
 			newAuthMeCommand(),
 			newAuthAPIKeysCommand(),

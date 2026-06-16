@@ -44,32 +44,31 @@ func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Co
 
 func rootCommands() []*cli.Command {
 	commands := []*cli.Command{
-		newLoginCommand(),
+		hiddenCommand(newLoginCommand()),
 		newAuthCommand(),
-		newSignupCommand(),
-		newWhoamiCommand(),
-		newLogoutCommand(),
+		hiddenCommand(newSignupCommand()),
+		hiddenCommand(newWhoamiCommand()),
+		hiddenCommand(newLogoutCommand()),
 	}
 	if buildinfo.IsDevelopment() {
 		commands = append(commands, newTUICommand())
 	}
 	commands = append(commands,
-		newProfileCommand(),
-		newActivityCommand(),
+		newMeCommand(),
 		newCardsCommand(),
 		newCollectionsCommand(),
 		newDecksCommand(),
-		newGroupsCommand(),
 		newSocialCommand(),
-		newEventsCommand(),
-		newPricingCommand(),
-		newNewsCommand(),
-		newNotificationsCommand(),
 		newPullsCommand(),
 		newConfigCommand(),
 		newVersionCommand(),
 	)
 	return commands
+}
+
+func hiddenCommand(cmd *cli.Command) *cli.Command {
+	cmd.Hidden = true
+	return cmd
 }
 
 func inheritIO(cmd *cli.Command, stdin io.Reader, stdout io.Writer, stderr io.Writer) {

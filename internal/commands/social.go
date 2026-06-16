@@ -10,8 +10,9 @@ import (
 func newSocialCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "social",
-		Usage: "Manage social connections",
+		Usage: "Find users and browse community activity",
 		Commands: []*cli.Command{
+			newSocialUsersCommand(),
 			newSDKCommand("follow", "Follow a user", []cli.Flag{&cli.StringFlag{Name: "target-user-id", Usage: "Target user ID"}}, true, func(cmd *cli.Command, req *clientv1.FollowUserRequest) error {
 				setStringFlag(cmd, "target-user-id", &req.TargetUserID)
 				return nil
@@ -54,6 +55,27 @@ func newSocialCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.IsFollowingRequest) (any, error) {
 				return c.IsFollowing(ctx, req)
 			}),
+			newActivityCommand(),
+			newGroupsCommand(),
+			newEventsCommand(),
+		},
+	}
+}
+
+func newSocialUsersCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "users",
+		Usage: "Find and inspect users",
+		Commands: []*cli.Command{
+			newSDKCommand("get", "Show a user profile", []cli.Flag{
+				&cli.StringFlag{Name: "user-id", Usage: "User ID"},
+			}, true, func(cmd *cli.Command, req *clientv1.GetProfileRequest) error {
+				setStringFlag(cmd, "user-id", &req.UserID)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetProfileRequest) (any, error) {
+				return c.GetProfile(ctx, req)
+			}),
+			newProfileSearchCommand(),
 		},
 	}
 }

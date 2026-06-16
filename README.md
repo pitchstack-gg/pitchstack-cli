@@ -44,15 +44,15 @@ pitchstack config show
 Log in with browser-based OAuth:
 
 ```sh
-pitchstack login
-pitchstack whoami
+pitchstack auth login
+pitchstack auth whoami
 pitchstack auth status
 ```
 
 Log out and clear the local session:
 
 ```sh
-pitchstack logout
+pitchstack auth logout
 ```
 
 ## Common Commands
@@ -64,6 +64,7 @@ pitchstack cards search --q "Fai"
 pitchstack cards get --id <card-id>
 pitchstack cards printings --card-id <card-id>
 pitchstack cards product --id <product-id>
+pitchstack cards prices get --product-id <product-id>
 ```
 
 Collections:
@@ -92,13 +93,14 @@ pitchstack decks create --name "My Deck" --hero-id <hero-id> --format blitz
 pitchstack decks delete --id <deck-id>
 ```
 
-Profile:
+Me:
 
 ```sh
-pitchstack profile get
-pitchstack profile update --name "Your Name" --bio "Hello"
-pitchstack profile socials upsert --platform bluesky --handle you --url https://bsky.app/profile/you
-pitchstack profile socials remove --platform bluesky
+pitchstack me profile get
+pitchstack me profile update --name "Your Name" --bio "Hello"
+pitchstack me socials upsert --platform bluesky --handle you --url https://bsky.app/profile/you
+pitchstack me socials remove --platform bluesky
+pitchstack me notifications inbox list
 ```
 
 Auth helpers:
@@ -109,6 +111,16 @@ pitchstack auth api-keys list
 pitchstack auth api-keys create --name "automation"
 pitchstack auth password request-reset --email you@example.com
 pitchstack auth password reset
+```
+
+Social:
+
+```sh
+pitchstack social users search --q az
+pitchstack social users get --user-id <user-id>
+pitchstack social activity list
+pitchstack social groups list
+pitchstack social events list
 ```
 
 Password and token prompts do not echo secrets. For automation, pass request JSON with `--file` or `--file -` instead of putting secrets in shell history.

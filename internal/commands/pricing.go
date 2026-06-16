@@ -7,10 +7,10 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-func newPricingCommand() *cli.Command {
+func newCardsPricesCommand() *cli.Command {
 	return &cli.Command{
-		Name:  "pricing",
-		Usage: "Manage product pricing",
+		Name:  "prices",
+		Usage: "Manage product prices",
 		Commands: []*cli.Command{
 			newSDKCommand("get", "Get current product price", []cli.Flag{
 				&cli.StringFlag{Name: "product-id", Usage: "Product ID"},
@@ -50,14 +50,17 @@ func newPricingCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetProductPricesRequest) (any, error) {
 				return c.BatchGetProductPrices(ctx, req)
 			}),
-			newPriceWatchesCommand(),
 		},
 	}
 }
 
-func newPriceWatchesCommand() *cli.Command {
+func newMePriceWatchesCommand() *cli.Command {
+	return newPriceWatchesCommand("price-watches")
+}
+
+func newPriceWatchesCommand(name string) *cli.Command {
 	return &cli.Command{
-		Name:  "watches",
+		Name:  name,
 		Usage: "Manage product price watches",
 		Commands: []*cli.Command{
 			newSDKCommand("list", "List product price watches", []cli.Flag{
