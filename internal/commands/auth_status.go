@@ -12,7 +12,7 @@ import (
 func newAuthCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "auth",
-		Usage: "Authentication helpers",
+		Usage: "Manage authentication",
 		Commands: []*cli.Command{
 			newAuthStatusCommand(),
 			newAuthMeCommand(),
@@ -25,7 +25,7 @@ func newAuthCommand() *cli.Command {
 func newAuthStatusCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "status",
-		Usage: "Show auth status and token expiry",
+		Usage: "Show authentication status",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
 			if err != nil {

@@ -13,11 +13,11 @@ import (
 func newConfigCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "config",
-		Usage: "Manage CLI config",
+		Usage: "Manage CLI configuration",
 		Commands: []*cli.Command{
 			{
 				Name:  "init",
-				Usage: "Write a default config file",
+				Usage: "Create default configuration",
 				Flags: []cli.Flag{
 					&cli.BoolFlag{Name: "force", Usage: "Overwrite an existing config file"},
 				},
@@ -35,7 +35,7 @@ func newConfigCommand() *cli.Command {
 			},
 			{
 				Name:  "show",
-				Usage: "Show active config profile",
+				Usage: "Show active configuration",
 				Action: func(ctx context.Context, cmd *cli.Command) error {
 					st, err := getState(ctx)
 					if err != nil {

@@ -11,7 +11,7 @@ import (
 func newAuthMeCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "me",
-		Usage: "Show current user and access profile",
+		Usage: "Show active user details",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return withSDKClient(ctx, cmd, true, func(c *clientv1.Client) (any, error) {
 				return c.Me(ctx)
@@ -62,10 +62,10 @@ func newAuthAPIKeysCommand() *cli.Command {
 func newAuthPasswordCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "password",
-		Usage: "Password helpers",
+		Usage: "Manage passwords",
 		Commands: []*cli.Command{
 			newAuthPasswordChangeCommand(),
-			newSDKCommand("request-reset", "Request a password reset", []cli.Flag{
+			newSDKCommand("request-reset", "Request password reset", []cli.Flag{
 				&cli.StringFlag{Name: "email", Usage: "Account email"},
 			}, false, func(cmd *cli.Command, req *clientv1.RequestPasswordResetRequest) error {
 				setStringFlag(cmd, "email", &req.Email)
@@ -81,7 +81,7 @@ func newAuthPasswordCommand() *cli.Command {
 func newAuthPasswordChangeCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "change",
-		Usage: "Change your password",
+		Usage: "Change password",
 		Flags: []cli.Flag{
 			requestFileFlag(),
 			&cli.StringFlag{Name: "user-id", Usage: "User ID (defaults to current session)"},
@@ -129,7 +129,7 @@ func newAuthPasswordChangeCommand() *cli.Command {
 func newAuthPasswordResetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "reset",
-		Usage: "Complete a password reset",
+		Usage: "Complete password reset",
 		Flags: []cli.Flag{requestFileFlag()},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			var req clientv1.ResetPasswordRequest

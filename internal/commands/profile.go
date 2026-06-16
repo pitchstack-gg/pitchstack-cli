@@ -13,7 +13,7 @@ import (
 func newProfileCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "profile",
-		Usage: "User profile commands",
+		Usage: "Manage user profiles",
 		Commands: []*cli.Command{
 			newProfileGetCommand(),
 			newProfileSearchCommand(),
@@ -31,7 +31,7 @@ func newProfileCommand() *cli.Command {
 func newProfileGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
-		Usage: "Get a user's profile (defaults to current user)",
+		Usage: "Show a user profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "user-id", Usage: "User ID (optional)"},
 		},
@@ -60,7 +60,7 @@ func newProfileSearchCommand() *cli.Command {
 func newProfileUpdateCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "update",
-		Usage: "Update the authenticated user's profile",
+		Usage: "Update current profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "username", Usage: "Username"},
 			&cli.StringFlag{Name: "name", Usage: "Name"},
@@ -122,7 +122,7 @@ func newProfileUpdateCommand() *cli.Command {
 func newProfileSettingsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "settings",
-		Usage: "Profile settings",
+		Usage: "Manage profile settings",
 		Commands: []*cli.Command{
 			newProfileSettingsGetCommand(),
 			newProfileSettingsUpdateCommand(),
@@ -133,7 +133,7 @@ func newProfileSettingsCommand() *cli.Command {
 func newProfileSettingsGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
-		Usage: "Get profile settings (current user)",
+		Usage: "Show profile settings",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "user-id", Usage: "Optional user ID override (admin use)"},
 		},
@@ -154,7 +154,7 @@ func newProfileSettingsGetCommand() *cli.Command {
 func newProfileSettingsUpdateCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "update",
-		Usage: "Update profile settings (current user)",
+		Usage: "Update profile settings",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "profile-visibility", Usage: "Profile visibility (private|followers|public)"},
 			&cli.StringFlag{Name: "social-visibility", Usage: "Social profiles visibility (private|followers|public)"},
@@ -232,7 +232,7 @@ func parseProfileVisibility(v string) (clientv1.ProfileVisibilityLevel, bool) {
 func newProfileAvatarCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "avatar",
-		Usage: "Avatar commands",
+		Usage: "Manage profile avatar",
 		Commands: []*cli.Command{
 			{
 				Name:  "set",
@@ -316,7 +316,7 @@ func newProfileAvatarUploadCommand() *cli.Command {
 func newProfileBackgroundCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "background",
-		Usage: "Profile background image commands",
+		Usage: "Manage profile background",
 		Commands: []*cli.Command{
 			newSDKCommand("begin", "Begin profile background upload", []cli.Flag{
 				&cli.StringFlag{Name: "content-type", Usage: "Content type"},
@@ -395,7 +395,7 @@ func newProfileBackgroundUploadCommand() *cli.Command {
 func newProfilePinsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "pins",
-		Usage: "Pinned profile resources",
+		Usage: "Manage pinned resources",
 		Commands: []*cli.Command{
 			newSDKCommand("get", "Get pinned resources", []cli.Flag{&cli.StringFlag{Name: "user-id", Usage: "User ID"}}, true, func(cmd *cli.Command, req *clientv1.GetPinnedResourcesRequest) error {
 				setStringFlag(cmd, "user-id", &req.UserID)
@@ -434,7 +434,7 @@ func newProfilePinsCommand() *cli.Command {
 func newProfilePrivacyCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "privacy",
-		Usage: "Privacy consent",
+		Usage: "Manage privacy consent",
 		Commands: []*cli.Command{
 			newSDKNoRequestCommand("get", "Get privacy consent", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
 				return c.GetPrivacyConsent(ctx)
@@ -479,7 +479,7 @@ func newProfilePrivacyCommand() *cli.Command {
 func newProfileSocialsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "socials",
-		Usage: "Social profiles",
+		Usage: "Manage social profiles",
 		Commands: []*cli.Command{
 			newProfileSocialsGetCommand(),
 			newProfileSocialsUpsertCommand(),
@@ -491,7 +491,7 @@ func newProfileSocialsCommand() *cli.Command {
 func newProfileSocialsGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
-		Usage: "Get social profiles for a user",
+		Usage: "List social profiles",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "user-id", Usage: "User ID", Required: true},
 		},
@@ -512,7 +512,7 @@ func newProfileSocialsGetCommand() *cli.Command {
 func newProfileSocialsUpsertCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "upsert",
-		Usage: "Upsert a social profile for the current user",
+		Usage: "Save a social profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "platform", Usage: "Platform", Required: true},
 			&cli.StringFlag{Name: "handle", Usage: "Handle"},
@@ -539,7 +539,7 @@ func newProfileSocialsUpsertCommand() *cli.Command {
 func newProfileSocialsRemoveCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "remove",
-		Usage: "Remove a social profile for the current user",
+		Usage: "Remove a social profile",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "platform", Usage: "Platform", Required: true},
 			yesFlag(),

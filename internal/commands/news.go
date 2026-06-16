@@ -10,7 +10,7 @@ import (
 func newNewsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "news",
-		Usage: "News article helpers",
+		Usage: "Browse news articles",
 		Commands: []*cli.Command{
 			newSDKCommand("recommended", "List recommended articles", append(pageFlags(), &cli.StringFlag{Name: "locale", Usage: "Locale"}, &cli.StringFlag{Name: "platform", Usage: "Platform"}), true, func(cmd *cli.Command, req *clientv1.ListRecommendedArticlesRequest) error {
 				setPageFlags(cmd, &req.PageSize, &req.NextToken)

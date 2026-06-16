@@ -12,7 +12,7 @@ import (
 func NewRootCommand(stdin io.Reader, stdout io.Writer, stderr io.Writer) *cli.Command {
 	cmd := &cli.Command{
 		Name:                   "pitchstack",
-		Usage:                  "CLI for Pitchstack API",
+		Usage:                  "Command-line tools for Pitchstack",
 		UseShortOptionHandling: true,
 		Reader:                 stdin,
 		Writer:                 stdout,

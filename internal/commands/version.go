@@ -12,7 +12,7 @@ import (
 func newVersionCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "version",
-		Usage: "Print version info",
+		Usage: "Show version information",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			_, err := fmt.Fprintf(cmd.Writer, "pitchstack %s (%s)\n", buildinfo.Version, buildinfo.Commit)
 			return err

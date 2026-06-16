@@ -18,7 +18,7 @@ import (
 func newLoginCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "login",
-		Usage: "Login (OAuth via browser by default)",
+		Usage: "Sign in to Pitchstack",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "legacy", Usage: "Use legacy email/password login instead of OAuth"},
 			&cli.BoolFlag{Name: "no-open", Usage: "Don't attempt to open a browser (prints URL instead)"},
@@ -179,7 +179,7 @@ func openBrowser(url string) error {
 func newSignupCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "signup",
-		Usage: "Create a new account",
+		Usage: "Create a Pitchstack account",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "email", Usage: "Account email"},
 			&cli.StringFlag{Name: "username", Usage: "Optional username"},
@@ -236,7 +236,7 @@ func newSignupCommand() *cli.Command {
 func newWhoamiCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "whoami",
-		Usage: "Show current authenticated user",
+		Usage: "Show the active user",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
 			if err != nil {
@@ -280,7 +280,7 @@ func newWhoamiCommand() *cli.Command {
 func newLogoutCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "logout",
-		Usage: "Logout and clear local session",
+		Usage: "Sign out and clear the local session",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
 			if err != nil {

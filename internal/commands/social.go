@@ -10,7 +10,7 @@ import (
 func newSocialCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "social",
-		Usage: "Social graph helpers",
+		Usage: "Manage social connections",
 		Commands: []*cli.Command{
 			newSDKCommand("follow", "Follow a user", []cli.Flag{&cli.StringFlag{Name: "target-user-id", Usage: "Target user ID"}}, true, func(cmd *cli.Command, req *clientv1.FollowUserRequest) error {
 				setStringFlag(cmd, "target-user-id", &req.TargetUserID)

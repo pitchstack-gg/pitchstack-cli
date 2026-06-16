@@ -10,7 +10,7 @@ import (
 func newEventsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "events",
-		Usage: "Event and store helpers",
+		Usage: "Browse events and stores",
 		Commands: []*cli.Command{
 			newSDKCommand("list", "List events", eventListFlags(), true, applyListEventsFlags, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListEventsRequest) (any, error) {
 				return c.ListEvents(ctx, req)
@@ -44,7 +44,7 @@ func newEventsCommand() *cli.Command {
 func newEventsStoresCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "stores",
-		Usage: "Store helpers",
+		Usage: "Manage event stores",
 		Commands: []*cli.Command{
 			newSDKCommand("list", "List stores", append(pageFlags(),
 				&cli.StringFlag{Name: "q", Usage: "Search query"},

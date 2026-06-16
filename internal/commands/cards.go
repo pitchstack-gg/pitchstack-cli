@@ -14,7 +14,7 @@ import (
 func newCardsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "cards",
-		Usage: "Card search and metadata",
+		Usage: "Search cards and metadata",
 		Commands: []*cli.Command{
 			newCardsSearchCommand(),
 			newCardsGetCommand(),
@@ -273,7 +273,7 @@ func applySearchFlagOverrides(cmd *cli.Command, params *cardsdb.SearchCardsParam
 func newCardsBatchGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "batch-get",
-		Usage: "Batch get cards",
+		Usage: "Get cards in bulk",
 		Flags: appendLocalCardsFlags(
 			repeatedIDsFlag("id", "Card ID (repeatable or comma-separated)"),
 			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
@@ -333,7 +333,7 @@ func newCardsPrintingCommand() *cli.Command {
 func newCardsPrintingsBatchCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "printings-batch",
-		Usage: "Batch get printings",
+		Usage: "Get printings in bulk",
 		Flags: appendLocalCardsFlags(
 			repeatedIDsFlag("id", "Printing ID (repeatable or comma-separated)"),
 			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
@@ -406,7 +406,7 @@ func newCardsProductCommand() *cli.Command {
 func newCardsProductsBatchCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "products-batch",
-		Usage: "Batch get products",
+		Usage: "Get products in bulk",
 		Flags: appendLocalCardsFlags(
 			repeatedIDsFlag("id", "Product ID (repeatable or comma-separated)"),
 			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
@@ -452,7 +452,7 @@ func newCardsSetsCommand() *cli.Command {
 func newCardsSetsBatchCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "sets-batch",
-		Usage: "Batch get sets",
+		Usage: "Get sets in bulk",
 		Flags: appendLocalCardsFlags(
 			repeatedIDsFlag("code", "Set code (repeatable or comma-separated)"),
 			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
@@ -469,7 +469,7 @@ func newCardsSetsBatchCommand() *cli.Command {
 func newCardsSnapshotCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "snapshot",
-		Usage: "Get local card database metadata",
+		Usage: "Show local card database metadata",
 		Flags: appendLocalCardsFlags(
 			&cli.IntFlag{Name: "schema-version", Usage: "Ignored compatibility flag"},
 			&cli.StringFlag{Name: "version", Usage: "Ignored compatibility flag"},

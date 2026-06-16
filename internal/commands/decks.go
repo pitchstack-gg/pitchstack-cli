@@ -258,7 +258,7 @@ func newDecksDeleteCommand() *cli.Command {
 func newDecksCloneCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "clone",
-		Usage: "Clone a deck from an existing deck version",
+		Usage: "Clone a deck version",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "source-deck-version-id", Usage: "Source deck version ID", Required: true},
 			&cli.StringFlag{Name: "name", Usage: "New deck name", Required: true},
@@ -337,7 +337,7 @@ func newDecksSearchCommand() *cli.Command {
 func newDecksBatchGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "batch-get",
-		Usage: "Batch fetch decks by ID",
+		Usage: "Get decks in bulk",
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{Name: "deck-id", Usage: "Deck ID (repeatable)"},
 			&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
@@ -376,7 +376,7 @@ func newDecksBatchGetCommand() *cli.Command {
 func newDecksExportCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "export",
-		Usage: "Export a deck snapshot",
+		Usage: "Export a deck",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "id", Usage: "Deck ID", Required: true},
 		},
@@ -399,7 +399,7 @@ func newDecksExportCommand() *cli.Command {
 func newDecksImportCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "import",
-		Usage: "Import a deck snapshot from JSON",
+		Usage: "Import a deck from JSON",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "file", Usage: "Path to JSON file (ImportDeckRequest)", Required: true},
 		},
@@ -426,7 +426,7 @@ func newDecksImportCommand() *cli.Command {
 func newDecksPermissionsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "permissions",
-		Usage: "Manage deck access permissions",
+		Usage: "Manage deck access",
 		Commands: []*cli.Command{
 			newDecksPermissionsGetCommand(),
 			newDecksPermissionsListCommand(),
@@ -471,7 +471,7 @@ func newDecksStarredCommand() *cli.Command {
 }
 
 func newDecksPermissionsStopShareCommand() *cli.Command {
-	return newSDKCommand("stop-share", "Remove all explicit deck shares", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.StopDeckShareRequest) error {
+	return newSDKCommand("stop-share", "Remove deck shares", []cli.Flag{&cli.StringFlag{Name: "deck-id", Usage: "Deck ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.StopDeckShareRequest) error {
 		setStringFlag(cmd, "deck-id", &req.DeckID)
 		return confirmAction(cmd, "Remove", "deck shares", req.DeckID)
 	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StopDeckShareRequest) (any, error) {
@@ -482,7 +482,7 @@ func newDecksPermissionsStopShareCommand() *cli.Command {
 func newDecksMatchesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "matches",
-		Usage: "Manage deck version match records",
+		Usage: "Manage deck matches",
 		Commands: []*cli.Command{
 			newSDKCommand("create", "Create a deck version match", []cli.Flag{
 				&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID"},
@@ -551,7 +551,7 @@ func applyDeckMatchIDFlags(cmd *cli.Command, req *clientv1.GetDeckVersionMatchRe
 func newDecksPermissionsGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
-		Usage: "Get your effective permission for a deck",
+		Usage: "Show deck access",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "deck-id", Usage: "Deck ID", Required: true},
 		},
@@ -575,7 +575,7 @@ func newDecksPermissionsGetCommand() *cli.Command {
 func newDecksPermissionsListCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "list",
-		Usage: "List explicit access grants for a deck",
+		Usage: "List deck access grants",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "deck-id", Usage: "Deck ID", Required: true},
 			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
@@ -851,7 +851,7 @@ func newDecksVersionsHistoryCommand() *cli.Command {
 func newDecksVersionsNotesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "notes",
-		Usage: "Manage deck version notes",
+		Usage: "Manage deck notes",
 		Commands: []*cli.Command{
 			newDecksVersionsNotesGetCommand(),
 			newDecksVersionsNotesUpdateCommand(),
@@ -912,7 +912,7 @@ func newDecksVersionsNotesUpdateCommand() *cli.Command {
 func newDecksVersionsCardsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "cards",
-		Usage: "Manage deck version cards",
+		Usage: "Manage deck cards",
 		Commands: []*cli.Command{
 			newDecksVersionsCardsListCommand(),
 			newDecksVersionsCardsModifyCommand(),
@@ -989,7 +989,7 @@ func newDecksVersionsCardsModifyCommand() *cli.Command {
 func newDecksVersionsSideboardGuidesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "sideboard-guides",
-		Usage: "Manage deck version sideboard guides",
+		Usage: "Manage sideboard guides",
 		Commands: []*cli.Command{
 			newDecksVersionsSideboardGuidesListCommand(),
 			newDecksVersionsSideboardGuidesUpsertCommand(),

@@ -72,7 +72,7 @@ func newGroupsCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.SearchGroupsRequest) (any, error) {
 				return c.SearchGroups(ctx, req)
 			}),
-			newSDKCommand("mine", "List my groups", pageFlags(), true, func(cmd *cli.Command, req *clientv1.ListMyGroupsRequest) error {
+			newSDKCommand("mine", "List joined groups", pageFlags(), true, func(cmd *cli.Command, req *clientv1.ListMyGroupsRequest) error {
 				setPageFlags(cmd, &req.PageSize, &req.NextToken)
 				return nil
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListMyGroupsRequest) (any, error) {
@@ -180,7 +180,7 @@ func newGroupInvitesCommand() *cli.Command {
 func newGroupAvatarCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "avatar",
-		Usage: "Manage group avatar uploads",
+		Usage: "Manage group avatar",
 		Commands: []*cli.Command{
 			newSDKCommand("begin", "Begin group avatar upload", []cli.Flag{
 				&cli.StringFlag{Name: "group-id", Usage: "Group ID"},

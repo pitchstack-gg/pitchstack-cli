@@ -20,7 +20,7 @@ import (
 func newTUICommand() *cli.Command {
 	return &cli.Command{
 		Name:  "tui",
-		Usage: "Open the interactive TUI",
+		Usage: "Open the interactive interface",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "refresh", Usage: "Force refresh the local card database before opening"},
 			&cli.BoolFlag{Name: "offline", Usage: "Use only the cached local card database"},

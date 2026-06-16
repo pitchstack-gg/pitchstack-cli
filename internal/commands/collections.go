@@ -36,7 +36,7 @@ func newCollectionsCommand() *cli.Command {
 func newCollectionsPermissionsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "permissions",
-		Usage: "Manage collection access permissions",
+		Usage: "Manage collection access",
 		Commands: []*cli.Command{
 			newCollectionsPermissionsGetCommand(),
 			newCollectionsPermissionsListCommand(),
@@ -50,7 +50,7 @@ func newCollectionsPermissionsCommand() *cli.Command {
 func newCollectionsPermissionsGetCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "get",
-		Usage: "Get your effective permission for a collection",
+		Usage: "Show collection access",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
 		},
@@ -74,7 +74,7 @@ func newCollectionsPermissionsGetCommand() *cli.Command {
 func newCollectionsPermissionsListCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "list",
-		Usage: "List explicit access grants for a collection",
+		Usage: "List collection access grants",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "collection-id", Usage: "Collection ID", Required: true},
 			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
@@ -191,7 +191,7 @@ func newCollectionsPermissionsRevokeCommand() *cli.Command {
 }
 
 func newCollectionsPermissionsStopShareCommand() *cli.Command {
-	return newSDKCommand("stop-share", "Remove all explicit collection shares", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.StopCollectionShareRequest) error {
+	return newSDKCommand("stop-share", "Remove collection shares", []cli.Flag{&cli.StringFlag{Name: "collection-id", Usage: "Collection ID"}, yesFlag()}, true, func(cmd *cli.Command, req *clientv1.StopCollectionShareRequest) error {
 		setStringFlag(cmd, "collection-id", &req.CollectionID)
 		return confirmAction(cmd, "Remove", "collection shares", req.CollectionID)
 	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.StopCollectionShareRequest) (any, error) {
@@ -240,7 +240,7 @@ func newCollectionsHistoryCommand() *cli.Command {
 }
 
 func newCollectionsBatchGetCommand() *cli.Command {
-	return newSDKCommand("batch-get", "Batch get collections", []cli.Flag{
+	return newSDKCommand("batch-get", "Get collections in bulk", []cli.Flag{
 		repeatedIDsFlag("id", "Collection ID (repeatable or comma-separated)"),
 		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
 	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCollectionsRequest) error {
@@ -346,7 +346,7 @@ func newCollectionsUpdateCommand() *cli.Command {
 }
 
 func newCollectionsArtCommand() *cli.Command {
-	return newSDKCommand("art", "Update collection artwork selection", []cli.Flag{
+	return newSDKCommand("art", "Update collection artwork", []cli.Flag{
 		&cli.StringFlag{Name: "id", Usage: "Collection ID", Required: true},
 		&cli.StringFlag{Name: "selected-art-printing-id", Usage: "Selected art printing ID"},
 		&cli.BoolFlag{Name: "clear-selected-art", Usage: "Clear selected artwork"},
@@ -431,7 +431,7 @@ func newCollectionsImportCommand() *cli.Command {
 }
 
 func newCollectionsValuationCommand() *cli.Command {
-	return newSDKCommand("valuation", "Get collection valuation", []cli.Flag{
+	return newSDKCommand("valuation", "Show collection valuation", []cli.Flag{
 		&cli.StringFlag{Name: "id", Usage: "Collection ID"},
 		&cli.StringFlag{Name: "source", Usage: "Price source"},
 	}, true, func(cmd *cli.Command, req *clientv1.GetCollectionValuationRequest) error {
@@ -718,7 +718,7 @@ func newCollectionItemsTransferCommand() *cli.Command {
 }
 
 func newCollectionItemsBatchGetCommand() *cli.Command {
-	return newSDKCommand("batch-get", "Batch get collection items", []cli.Flag{
+	return newSDKCommand("batch-get", "Get collection items in bulk", []cli.Flag{
 		repeatedIDsFlag("id", "Item ID (repeatable or comma-separated)"),
 		&cli.BoolFlag{Name: "allow-partial", Usage: "Allow partial results"},
 	}, true, func(cmd *cli.Command, req *clientv1.BatchGetCollectionItemsRequest) error {

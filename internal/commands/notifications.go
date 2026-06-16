@@ -10,7 +10,7 @@ import (
 func newNotificationsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "notifications",
-		Usage: "Notification helpers",
+		Usage: "Manage notifications",
 		Commands: []*cli.Command{
 			newSDKCommand("create-message", "Create a notification message", []cli.Flag{
 				&cli.StringFlag{Name: "target-user-id", Usage: "Target user ID"},
@@ -44,7 +44,7 @@ func newNotificationsCommand() *cli.Command {
 func newPushDevicesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "devices",
-		Usage: "Push device helpers",
+		Usage: "Manage push devices",
 		Commands: []*cli.Command{
 			newSDKCommand("register", "Register a push device", []cli.Flag{
 				&cli.StringFlag{Name: "device-id", Usage: "Device ID"},
@@ -73,7 +73,7 @@ func newPushDevicesCommand() *cli.Command {
 func newNotificationPreferencesCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "preferences",
-		Usage: "Notification preferences",
+		Usage: "Manage notification preferences",
 		Commands: []*cli.Command{
 			newSDKNoRequestCommand("get", "Get notification preferences", true, func(ctx context.Context, c *clientv1.Client) (any, error) {
 				return c.GetNotificationPreferences(ctx)
@@ -88,7 +88,7 @@ func newNotificationPreferencesCommand() *cli.Command {
 func newNotificationTopicsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "topics",
-		Usage: "Notification topic subscriptions",
+		Usage: "Manage notification topics",
 		Commands: []*cli.Command{
 			newSDKCommand("get", "Get topic subscriptions", notificationTopicFlags(), true, func(cmd *cli.Command, req *clientv1.GetNotificationTopicSubscriptionsRequest) error {
 				setStringFlag(cmd, "category", &req.Category)
@@ -121,7 +121,7 @@ func notificationTopicFlags() []cli.Flag {
 func newInboxCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "inbox",
-		Usage: "Inbox helpers",
+		Usage: "Manage inbox messages",
 		Commands: []*cli.Command{
 			newSDKCommand("list", "List inbox notifications", append(pageFlags(),
 				&cli.BoolFlag{Name: "unread-only", Usage: "Unread only"},

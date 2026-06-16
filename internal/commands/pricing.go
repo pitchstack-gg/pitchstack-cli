@@ -10,7 +10,7 @@ import (
 func newPricingCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "pricing",
-		Usage: "Product pricing helpers",
+		Usage: "Manage product pricing",
 		Commands: []*cli.Command{
 			newSDKCommand("get", "Get current product price", []cli.Flag{
 				&cli.StringFlag{Name: "product-id", Usage: "Product ID"},
@@ -38,7 +38,7 @@ func newPricingCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetProductPriceHistoryRequest) (any, error) {
 				return c.GetProductPriceHistory(ctx, req)
 			}),
-			newSDKCommand("batch", "Batch get product prices", []cli.Flag{
+			newSDKCommand("batch", "Get product prices in bulk", []cli.Flag{
 				repeatedIDsFlag("product-id", "Product ID (repeatable or comma-separated)"),
 				&cli.StringFlag{Name: "source", Usage: "Price source"},
 			}, true, func(cmd *cli.Command, req *clientv1.BatchGetProductPricesRequest) error {

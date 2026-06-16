@@ -12,7 +12,7 @@ import (
 func newActivityCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "activity",
-		Usage: "Activity feed",
+		Usage: "Browse activity",
 		Commands: []*cli.Command{
 			newActivityListCommand(),
 		},

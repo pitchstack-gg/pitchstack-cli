@@ -10,7 +10,7 @@ import (
 func newEngagementCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "engagement",
-		Usage: "Views, likes, and trending resources",
+		Usage: "Track engagement",
 		Commands: []*cli.Command{
 			newSDKCommand("track-view", "Track a resource view", append(engagementResourceFlags(), &cli.StringFlag{Name: "client-viewer-id", Usage: "Client viewer ID"}, &cli.StringFlag{Name: "occurred-at", Usage: "Occurrence time (RFC3339)"}), true, func(cmd *cli.Command, req *clientv1.TrackViewRequest) error {
 				if cmd.IsSet("resource-type") || cmd.IsSet("resource-id") {
@@ -47,7 +47,7 @@ func newEngagementCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListTrendingResourcesRequest) (any, error) {
 				return c.ListTrendingResources(ctx, req)
 			}),
-			newSDKCommand("view-counts", "Batch get view counts from JSON", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetViewCountsRequest) (any, error) {
+			newSDKCommand("view-counts", "Get view counts from JSON", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetViewCountsRequest) (any, error) {
 				return c.BatchGetViewCounts(ctx, req)
 			}),
 			newSDKCommand("like", "Like a resource", engagementResourceFlags(), true, func(cmd *cli.Command, req *clientv1.LikeResourceRequest) error {
@@ -66,10 +66,10 @@ func newEngagementCommand() *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnlikeResourceRequest) (any, error) {
 				return c.UnlikeResource(ctx, req)
 			}),
-			newSDKCommand("like-counts", "Batch get like counts from JSON", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetLikeCountsRequest) (any, error) {
+			newSDKCommand("like-counts", "Get like counts from JSON", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetLikeCountsRequest) (any, error) {
 				return c.BatchGetLikeCounts(ctx, req)
 			}),
-			newSDKCommand("viewer-likes", "Batch get viewer like states from JSON", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetViewerLikesRequest) (any, error) {
+			newSDKCommand("viewer-likes", "Get viewer like states from JSON", nil, true, nil, func(ctx context.Context, c *clientv1.Client, req *clientv1.BatchGetViewerLikesRequest) (any, error) {
 				return c.BatchGetViewerLikes(ctx, req)
 			}),
 		},

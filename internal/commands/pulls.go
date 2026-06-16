@@ -10,7 +10,7 @@ import (
 func newPullsCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "pulls",
-		Usage: "Pack pull helpers",
+		Usage: "Manage pack pulls",
 		Commands: []*cli.Command{
 			newSDKCommand("create", "Create a pull", []cli.Flag{
 				&cli.StringFlag{Name: "sealed-product-id", Usage: "Sealed product ID"},
