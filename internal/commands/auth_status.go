@@ -22,6 +22,8 @@ func newAuthCommand() *cli.Command {
 			newAuthMeCommand(),
 			newAuthAPIKeysCommand(),
 			newAuthPasswordCommand(),
+			newAuthEmailCommand(),
+			newAuthPasskeysCommand(),
 		},
 	}
 }

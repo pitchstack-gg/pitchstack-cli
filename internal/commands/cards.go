@@ -18,6 +18,7 @@ func newCardsCommand() *cli.Command {
 		Usage: "Search cards and metadata",
 		Commands: []*cli.Command{
 			newCardsSearchCommand(),
+			newCardsIdentifiersCommand(),
 			newCardsGetCommand(),
 			newCardsBatchGetCommand(),
 			newCardsPrintingsCommand(),
@@ -35,6 +36,15 @@ func newCardsCommand() *cli.Command {
 			newResourceTrendingCommand("cards", clientv1.TrackableResourceTypeCard),
 		},
 	}
+}
+
+func newCardsIdentifiersCommand() *cli.Command {
+	return newSDKCommand("identifiers", "List card identifiers", pageFlags(), true, func(cmd *cli.Command, req *clientv1.ListCardIdentifiersRequest) error {
+		setPageFlags(cmd, &req.PageSize, &req.NextToken)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.ListCardIdentifiersRequest) (any, error) {
+		return c.ListCardIdentifiers(ctx, req)
+	})
 }
 
 func localCardsFlags() []cli.Flag {

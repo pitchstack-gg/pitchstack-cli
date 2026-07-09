@@ -308,6 +308,11 @@ func newDecksSearchCommand() *cli.Command {
 			&cli.StringFlag{Name: "q", Usage: "Search term"},
 			&cli.StringFlag{Name: "hero-id", Usage: "Hero ID"},
 			&cli.StringFlag{Name: "format", Usage: "Format"},
+			&cli.StringFlag{Name: "deck-kind", Usage: "Deck kind (user|reference)"},
+			&cli.StringFlag{Name: "source-kind", Usage: "Source kind (promo-article|precon|tournament-result)"},
+			&cli.StringFlag{Name: "source-reference", Usage: "Source reference"},
+			&cli.StringFlag{Name: "tournament-type", Usage: "Tournament type"},
+			&cli.StringFlag{Name: "order-by", Usage: "Order (updated-at-desc|updated-at-asc|created-at-desc|created-at-asc|name-asc|name-desc)"},
 			&cli.IntFlag{Name: "page-size", Usage: "Page size"},
 			&cli.StringFlag{Name: "next-token", Usage: "Pagination token"},
 		},
@@ -322,6 +327,13 @@ func newDecksSearchCommand() *cli.Command {
 				HeroID:     strings.TrimSpace(cmd.String("hero-id")),
 				Format:     strings.TrimSpace(cmd.String("format")),
 				NextToken:  strings.TrimSpace(cmd.String("next-token")),
+				DeckKind:   parseDeckKind(cmd.String("deck-kind")),
+				SourceKind: parseDeckSourceKind(cmd.String("source-kind")),
+			}
+			setStringFlag(cmd, "source-reference", &req.SourceReference)
+			setStringFlag(cmd, "tournament-type", &req.TournamentType)
+			if cmd.IsSet("order-by") {
+				req.OrderBy = parseSearchDecksOrder(cmd.String("order-by"))
 			}
 			if cmd.IsSet("page-size") && cmd.Int("page-size") > 0 {
 				ps := int32(cmd.Int("page-size"))
@@ -1029,10 +1041,13 @@ func newDecksVersionsSideboardGuidesUpsertCommand() *cli.Command {
 		Name:  "upsert",
 		Usage: "Upsert a sideboard guide for a deck version",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID", Required: true},
-			&cli.StringFlag{Name: "target-type", Usage: "Target type (hero|class|archetype)", Required: true},
-			&cli.StringFlag{Name: "target", Usage: "Target identifier", Required: true},
-			&cli.StringFlag{Name: "guide", Usage: "Guide text", Required: true},
+			requestFileFlag(),
+			&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID"},
+			&cli.StringFlag{Name: "id", Usage: "Sideboard guide ID"},
+			&cli.StringFlag{Name: "target-type", Usage: "Target type (hero|class|archetype)"},
+			&cli.StringFlag{Name: "target", Usage: "Target identifier"},
+			&cli.StringFlag{Name: "play-order", Usage: "Play order (any|first|second)"},
+			&cli.StringFlag{Name: "guide", Usage: "Guide text"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			st, err := getState(ctx)
@@ -1040,18 +1055,35 @@ func newDecksVersionsSideboardGuidesUpsertCommand() *cli.Command {
 				return err
 			}
 
-			targetType, ok := parseSideboardGuideTargetType(cmd.String("target-type"))
-			if !ok {
-				return cli.Exit("--target-type must be hero|class|archetype", 2)
+			var req clientv1.UpsertDeckVersionSideboardGuideRequest
+			if err := readRequestFile(cmd, &req); err != nil {
+				return err
 			}
-
-			req := &clientv1.UpsertDeckVersionSideboardGuideRequest{
-				DeckVersionID: strings.TrimSpace(cmd.String("deck-version-id")),
-				TargetType:    targetType,
-				Target:        strings.TrimSpace(cmd.String("target")),
-				Guide:         strings.TrimSpace(cmd.String("guide")),
+			setStringFlag(cmd, "deck-version-id", &req.DeckVersionID)
+			setStringFlag(cmd, "id", &req.ID)
+			setStringFlag(cmd, "guide", &req.Guide)
+			if cmd.IsSet("target-type") || cmd.IsSet("target") {
+				targetType, ok := parseSideboardGuideTargetType(cmd.String("target-type"))
+				if !ok {
+					return cli.Exit("--target-type must be hero|class|archetype", 2)
+				}
+				target := strings.TrimSpace(cmd.String("target"))
+				if target == "" {
+					return cli.Exit("--target must not be empty", 2)
+				}
+				req.Targets = []clientv1.SideboardGuideTarget{{
+					TargetType: targetType,
+					Target:     target,
+				}}
 			}
-			resp, err := st.Service.UpsertDeckVersionSideboardGuide(ctx, req)
+			if cmd.IsSet("play-order") {
+				playOrder, ok := parseSideboardGuidePlayOrder(cmd.String("play-order"))
+				if !ok {
+					return cli.Exit("--play-order must be any|first|second", 2)
+				}
+				req.PlayOrder = playOrder
+			}
+			resp, err := st.Service.UpsertDeckVersionSideboardGuide(ctx, &req)
 			if err != nil {
 				return err
 			}
@@ -1068,6 +1100,7 @@ func newDecksVersionsSideboardGuidesDeleteCommand() *cli.Command {
 			&cli.StringFlag{Name: "deck-version-id", Usage: "Deck version ID", Required: true},
 			&cli.StringFlag{Name: "target-type", Usage: "Target type (hero|class|archetype)", Required: true},
 			&cli.StringFlag{Name: "target", Usage: "Target identifier", Required: true},
+			&cli.StringFlag{Name: "play-order", Usage: "Play order (any|first|second)"},
 			yesFlag(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -1085,11 +1118,20 @@ func newDecksVersionsSideboardGuidesDeleteCommand() *cli.Command {
 				return err
 			}
 
-			if _, err := st.Service.DeleteDeckVersionSideboardGuide(ctx, &clientv1.DeleteDeckVersionSideboardGuideRequest{
+			req := &clientv1.DeleteDeckVersionSideboardGuideRequest{
 				DeckVersionID: strings.TrimSpace(cmd.String("deck-version-id")),
 				TargetType:    targetType,
 				Target:        target,
-			}); err != nil {
+			}
+			if cmd.IsSet("play-order") {
+				playOrder, ok := parseSideboardGuidePlayOrder(cmd.String("play-order"))
+				if !ok {
+					return cli.Exit("--play-order must be any|first|second", 2)
+				}
+				req.PlayOrder = playOrder
+			}
+
+			if _, err := st.Service.DeleteDeckVersionSideboardGuide(ctx, req); err != nil {
 				return err
 			}
 
@@ -1116,6 +1158,69 @@ func parseDeckListScope(v string) clientv1.DeckListScope {
 			return clientv1.DeckListScope(upper)
 		}
 		return clientv1.DeckListScope(v)
+	}
+}
+
+func parseDeckKind(v string) clientv1.DeckKind {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "", "unspecified":
+		return clientv1.DeckKindUnspecified
+	case "user":
+		return clientv1.DeckKindUser
+	case "reference":
+		return clientv1.DeckKindReference
+	default:
+		upper := strings.ToUpper(strings.TrimSpace(v))
+		if strings.HasPrefix(upper, "DECK_KIND_") {
+			return clientv1.DeckKind(upper)
+		}
+		return clientv1.DeckKind(v)
+	}
+}
+
+func parseDeckSourceKind(v string) clientv1.DeckSourceKind {
+	normalized := strings.NewReplacer("_", "-", " ", "-").Replace(strings.ToLower(strings.TrimSpace(v)))
+	switch normalized {
+	case "", "unspecified":
+		return clientv1.DeckSourceKindUnspecified
+	case "promo-article":
+		return clientv1.DeckSourceKindPromoArticle
+	case "precon":
+		return clientv1.DeckSourceKindPrecon
+	case "tournament-result":
+		return clientv1.DeckSourceKindTournamentResult
+	default:
+		upper := strings.ToUpper(strings.TrimSpace(v))
+		if strings.HasPrefix(upper, "DECK_SOURCE_KIND_") {
+			return clientv1.DeckSourceKind(upper)
+		}
+		return clientv1.DeckSourceKind(v)
+	}
+}
+
+func parseSearchDecksOrder(v string) clientv1.SearchDecksOrder {
+	normalized := strings.NewReplacer("_", "-", " ", "-").Replace(strings.ToLower(strings.TrimSpace(v)))
+	switch normalized {
+	case "", "unspecified":
+		return clientv1.SearchDecksOrderUnspecified
+	case "updated-at-desc":
+		return clientv1.SearchDecksOrderUpdatedAtDesc
+	case "updated-at-asc":
+		return clientv1.SearchDecksOrderUpdatedAtAsc
+	case "created-at-desc":
+		return clientv1.SearchDecksOrderCreatedAtDesc
+	case "created-at-asc":
+		return clientv1.SearchDecksOrderCreatedAtAsc
+	case "name-asc":
+		return clientv1.SearchDecksOrderNameAsc
+	case "name-desc":
+		return clientv1.SearchDecksOrderNameDesc
+	default:
+		upper := strings.ToUpper(strings.TrimSpace(v))
+		if strings.HasPrefix(upper, "SEARCH_DECKS_ORDER_") {
+			return clientv1.SearchDecksOrder(upper)
+		}
+		return clientv1.SearchDecksOrder(v)
 	}
 }
 
@@ -1171,6 +1276,25 @@ func parseSideboardGuideTargetType(v string) (clientv1.SideboardGuideTargetType,
 			return clientv1.SideboardGuideTargetType(upper), true
 		}
 		return clientv1.SideboardGuideTargetTypeUnspecified, false
+	}
+}
+
+func parseSideboardGuidePlayOrder(v string) (clientv1.SideboardGuidePlayOrder, bool) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "any":
+		return clientv1.SideboardGuidePlayOrderAny, true
+	case "first":
+		return clientv1.SideboardGuidePlayOrderFirst, true
+	case "second":
+		return clientv1.SideboardGuidePlayOrderSecond, true
+	case "", "unspecified":
+		return clientv1.SideboardGuidePlayOrderUnspecified, false
+	default:
+		upper := strings.ToUpper(strings.TrimSpace(v))
+		if strings.HasPrefix(upper, "SIDEBOARD_GUIDE_PLAY_ORDER_") {
+			return clientv1.SideboardGuidePlayOrder(upper), true
+		}
+		return clientv1.SideboardGuidePlayOrderUnspecified, false
 	}
 }
 

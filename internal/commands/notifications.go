@@ -35,6 +35,7 @@ func newNotificationsCommand() *cli.Command {
 			}),
 			newPushDevicesCommand(),
 			newNotificationPreferencesCommand(),
+			newNotificationEmailUnsubscribeCommand(),
 			newNotificationTopicsCommand(),
 			newInboxCommand(),
 		},
@@ -48,6 +49,7 @@ func newMeNotificationsCommand() *cli.Command {
 		Commands: []*cli.Command{
 			newPushDevicesCommand(),
 			newNotificationPreferencesCommand(),
+			newNotificationEmailUnsubscribeCommand(),
 			newNotificationTopicsCommand(),
 			newInboxCommand(),
 		},
@@ -96,6 +98,17 @@ func newNotificationPreferencesCommand() *cli.Command {
 			}),
 		},
 	}
+}
+
+func newNotificationEmailUnsubscribeCommand() *cli.Command {
+	return newSDKCommand("unsubscribe-email", "Unsubscribe from email notifications", []cli.Flag{
+		&cli.StringFlag{Name: "token", Usage: "Unsubscribe token"},
+	}, false, func(cmd *cli.Command, req *clientv1.UnsubscribeEmailRequest) error {
+		setStringFlag(cmd, "token", &req.Token)
+		return nil
+	}, func(ctx context.Context, c *clientv1.Client, req *clientv1.UnsubscribeEmailRequest) (any, error) {
+		return c.UnsubscribeEmail(ctx, req)
+	})
 }
 
 func newNotificationTopicsCommand() *cli.Command {

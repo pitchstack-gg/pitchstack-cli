@@ -87,6 +87,16 @@ func newPriceWatchesCommand(name string) *cli.Command {
 			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.DeleteProductPriceWatchRequest) (any, error) {
 				return c.DeleteProductPriceWatch(ctx, req)
 			}),
+			newSDKCommand("digest", "Get a price-watch digest", []cli.Flag{
+				&cli.StringFlag{Name: "digest-id", Usage: "Digest ID"},
+				&cli.StringFlag{Name: "digest-date", Usage: "Digest date"},
+			}, true, func(cmd *cli.Command, req *clientv1.GetProductPriceWatchDigestRequest) error {
+				setStringFlag(cmd, "digest-id", &req.DigestID)
+				setStringFlag(cmd, "digest-date", &req.DigestDate)
+				return nil
+			}, func(ctx context.Context, c *clientv1.Client, req *clientv1.GetProductPriceWatchDigestRequest) (any, error) {
+				return c.GetProductPriceWatchDigest(ctx, req)
+			}),
 		},
 	}
 }
