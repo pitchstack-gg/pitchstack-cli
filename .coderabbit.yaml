@@ -1,0 +1,252 @@
+# yaml-language-server: $schema=https://storage.googleapis.com/coderabbit_public_assets/schema.v2.json
+#
+# CodeRabbit configuration for pitchstack-cli.
+#
+# Public Go CLI for Pitchstack, released with goreleaser.
+#
+# Sections are marked:
+#   [BASE]  Portable across the pitchstack-gg repos — identical in each one, so
+#           it can later be hoisted into a single org-level config in the
+#           CodeRabbit UI and deleted from here (see `inheritance` below).
+#   [REPO]  Specific to this repository. Rewrite, do not copy.
+
+language: en-US
+
+# [BASE] Inherit anything not set here from the org-level config. No-op until
+# an org-level config exists, so it is safe to carry into a new repo on day one.
+inheritance: true
+
+# [BASE] Matches how this org writes review comments: evidence over volume.
+tone_instructions: >-
+  Be direct and concrete. Name the rule or gate a finding violates and point at
+  the file. Prefer one well-evidenced comment to several speculative ones. Skip
+  praise and comments that only restate the diff.
+
+early_access: false
+
+reviews:
+  # [BASE] `assertive` raises finding volume. Drop to `chill` if signal-to-noise
+  # slips in this repo.
+  profile: assertive
+
+  # [BASE] Never let the bot gate a merge; it informs, humans and CI decide.
+  request_changes_workflow: false
+
+  high_level_summary: true
+  changed_files_summary: true
+  collapse_walkthrough: true
+  estimate_code_review_effort: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  enable_prompt_for_ai_agents: true
+
+  # [BASE] Noise off.
+  poem: false
+  in_progress_fortune: false
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - main
+    ignore_title_keywords:
+      - WIP
+      - DO NOT MERGE
+    # [BASE] Agent branches push many small commits; the default of 5 would stop
+    # reviewing mid-branch.
+    auto_pause_after_reviewed_commits: 25
+
+  # [REPO] Exclusions. A finding in generated or vendored output can only be
+  # fixed by regenerating it, so reviewing it produces comments nobody can
+  # action. Note: path_filters also drive CodeRabbit's sparse-checkout.
+  path_filters:
+    - "!**/gen/**"
+    - "!**/mocks/**"
+    - "!**/*.pb.go"
+    - "!go.sum"
+    - "!flake.lock"
+
+  # [REPO] Rules this repository states that no gate checks.
+  path_instructions:
+    - path: "internal/**"
+      instructions: |-
+        A CLI's output and flags are its contract. Flag a renamed or removed flag, a
+        changed default, or a changed exit code that ships without being called out as
+        breaking. Errors reaching the user should say what to do next, not surface a
+        raw wrapped error; secrets and tokens must never be printed, including in
+        verbose or debug output.
+    - path: "cmd/**"
+      instructions: |-
+        Command wiring stays thin — parse flags, build config, call into `internal/`.
+    - path: ".goreleaser.yaml"
+      instructions: |-
+        Release configuration. Flag a change to the build matrix, ldflags or artifact
+        naming that would silently change what users download.
+    - path: "**/*.md"
+      instructions: |-
+        If prose states how many things follow ("Three obligations", "all four are
+        checked") and the list changes, the count is part of the change. Flag a stated
+        count that no longer matches the list beneath it. Counts are read against their
+        own lead-in and are never reconciled between files — two documents legitimately
+        counting the same things differently is not a finding.
+
+  # [REPO] Labels that actually exist in this repository's tracker.
+  labeling_instructions:
+    - label: enhancement
+      instructions: |-
+        Adds new capability or extends an existing one.
+    - label: bug
+      instructions: |-
+        Fixes incorrect behaviour in code that already shipped.
+    - label: documentation
+      instructions: |-
+        Changes only Markdown or README.
+
+  pre_merge_checks:
+    # [BASE] Conventional Commits, because PRs land as squash merges and the
+    # title becomes the commit subject.
+    title:
+      mode: error
+      requirements: >-
+        The title must be a valid Conventional Commits 1.0.0 subject, because it
+        becomes the squash-merge commit subject:
+
+          <type>[(<scope>)][!]: <subject>
+
+        type is one of feat, fix, docs, test, refactor, perf, build, ci, chore,
+        revert.
+
+        scope is the part of the tree the change is about — the command or package the change is about. It is
+        required whenever one obviously applies; omit it only for genuinely
+        repo-wide changes.
+
+        subject is imperative mood, lower case, with no trailing period, and
+        short enough to read in a log — aim for 72 characters including the type
+        and scope.
+
+        A breaking change puts `!` before the colon and must also carry a
+        `BREAKING CHANGE:` footer in the description naming what a consumer must
+        do.
+
+        Issue references belong in the footer (`Refs: #61`, `Closes: #61`), not
+        in the subject. A trailing `(#NN)` is appended by GitHub on merge and is
+        fine if already present.
+
+    # [BASE]
+    description:
+      mode: warning
+    issue_assessment:
+      mode: warning
+    # [BASE] Doc comments are conventional here but a coverage percentage is the
+    # wrong instrument for them.
+    docstrings:
+      mode: "off"
+
+  # [BASE] Do not volunteer generated content — house conventions are specific
+  # enough that an unprompted draft costs more to correct than to write.
+  # Generation on explicit request is still available, steered by
+  # `code_generation` below.
+  finishing_touches:
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    simplify:
+      enabled: false
+    fix_ci:
+      enabled: false
+    # A merge that applies cleanly can still be wrong — prose claims survive a
+    # clean merge while becoming false. Conflicts get a human.
+    resolve_merge_conflict:
+      enabled: false
+
+  # [REPO] Enable what has signal on this tree; disable what would only add
+  # noise. Tools not listed keep their defaults and never match a file.
+  tools:
+    golangci-lint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+    github-checks:
+      enabled: true
+    actionlint:
+      enabled: true
+    zizmor:
+      enabled: true
+
+# Knowledge base. The conventions live in the repo's own docs, not in this
+# file, which is what makes the setup portable.
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+
+  code_guidelines:
+    enabled: true
+    # Setting this replaces CodeRabbit's defaults, so the ones worth keeping
+    # are re-listed here.
+    filePatterns:
+      - "**/AGENTS.md"
+      - "**/CLAUDE.md"
+
+  learnings:
+    scope: auto
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto
+
+  # [BASE] Tracker is GitHub Issues; saying so stops lookups against trackers
+  # this org does not use.
+  jira:
+    usage: disabled
+  linear:
+    usage: disabled
+
+chat:
+  art: false
+  auto_reply: true
+  # [BASE] Only org members can steer the bot.
+  allow_non_org_members: false
+  integrations:
+    jira:
+      usage: disabled
+    linear:
+      usage: disabled
+
+# [REPO] Issue enrichment.
+issue_enrichment:
+  auto_enrich:
+    enabled: false
+  planning:
+    enabled: true
+    auto_planning:
+
+      # This repo has no triage labels, so there is nothing to scope planning
+      # to; planning every issue would be noise. Add `ready-for-agent` to the
+      # tracker and flip this on to enable it.
+      enabled: false
+
+  labeling:
+    auto_apply_labels: false
+
+code_generation:
+  docstrings:
+    language: en-US
+    path_instructions:
+      - path: "**/*.go"
+        instructions: |-
+          Go doc comments begin with the identifier's name and say why the thing
+          exists or what contract it carries, not what the next line does.
+          Document the error sentinels a function may return.
+  unit_tests:
+    path_instructions:
+      - path: "**/*.go"
+        instructions: |-
+          Gherkin-style subtests with testify: each `t.Run` names a
+          given/when/then behaviour. Assert on modeled error sentinels with
+          `errors.Is`, never on error strings.
