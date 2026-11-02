@@ -38,3 +38,4 @@ jobs:
           GITHUB_ACTION_CONFIG__FAIL_ON_TOOL_ERRORS: 'true'
           CONFIG__LOG_LEVEL: ERROR
           CONFIG__VERBOSITY_LEVEL: '0'
+          CONFIG__NUM_RETRIES: '0'
