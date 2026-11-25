@@ -19,9 +19,41 @@ spec:
     serviceAccountName: pr-agent-reviewer
     podTemplate:
       automountServiceAccountToken: false
-      nodeSelector:
-        pitchstack.gg/node-pool: burst
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: pitchstack.gg/node-pool
+                    operator: In
+                    values:
+                      - remote
+                  - key: pitchstack.gg.node-restriction.kubernetes.io/residential-production
+                    operator: In
+                    values:
+                      - 'true'
+              - matchExpressions:
+                  - key: pitchstack.gg/node-pool
+                    operator: In
+                    values:
+                      - burst
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions:
+                  - key: pitchstack.gg/node-pool
+                    operator: In
+                    values:
+                      - remote
       tolerations:
+        - key: pitchstack.gg/remote-workloads
+          operator: Equal
+          value: ci-residential
+          effect: NoSchedule
+        - key: pitchstack.gg/remote-production
+          operator: Equal
+          value: 'true'
+          effect: NoSchedule
         - key: pitchstack.gg/burst
           operator: Equal
           value: 'true'
